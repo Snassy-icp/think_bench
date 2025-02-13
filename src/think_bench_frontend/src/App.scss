@@ -8,6 +8,8 @@ $success-color: #27ae60;
 $error-color: #e74c3c;
 $shadow-color: rgba(0, 0, 0, 0.1);
 
+@use "sass:color";
+
 // Mixins
 @mixin card {
   background: white;
@@ -26,11 +28,11 @@ $shadow-color: rgba(0, 0, 0, 0.1);
   transition: background-color 0.2s;
 
   &:hover {
-    background-color: darken($secondary-color, 10%);
+    background-color: color.adjust($secondary-color, $lightness: -10%);
   }
 
   &:disabled {
-    background-color: lighten($secondary-color, 20%);
+    background-color: color.adjust($secondary-color, $lightness: 20%);
     cursor: not-allowed;
   }
 }
@@ -43,19 +45,82 @@ $shadow-color: rgba(0, 0, 0, 0.1);
 }
 
 .header {
-  background-color: $primary-color;
+  background-color: #1a1a1a;
+  padding: 1rem;
   color: white;
-  padding: 20px;
-  text-align: center;
 
-  h1 {
-    margin: 0;
-    font-size: 2em;
+  .header-content {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .header-title {
+    h1 {
+      margin: 0;
+      font-size: 2rem;
+    }
+    p {
+      margin: 0.5rem 0 0;
+      opacity: 0.8;
+    }
+  }
+
+  .auth-section {
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+
+      .principal {
+        font-family: monospace;
+        background: rgba(255, 255, 255, 0.1);
+        padding: 0.5rem;
+        border-radius: 4px;
+      }
+    }
+  }
+}
+
+.auth-button {
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: #45a049;
+  }
+}
+
+.login-prompt {
+  text-align: center;
+  padding: 3rem;
+  max-width: 600px;
+  margin: 2rem auto;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+  h2 {
+    margin-bottom: 1rem;
+    color: #333;
   }
 
   p {
-    margin: 10px 0 0;
-    opacity: 0.8;
+    margin-bottom: 2rem;
+    color: #666;
+  }
+
+  .auth-button {
+    font-size: 1.2rem;
+    padding: 0.75rem 1.5rem;
   }
 }
 
@@ -154,7 +219,7 @@ $shadow-color: rgba(0, 0, 0, 0.1);
     .concept-description {
       display: block;
       font-size: 0.9em;
-      color: lighten($text-color, 20%);
+      color: color.adjust($text-color, $lightness: 20%);
       margin-top: 5px;
     }
   }
@@ -173,7 +238,7 @@ $shadow-color: rgba(0, 0, 0, 0.1);
   }
 
   p {
-    color: lighten($text-color, 20%);
+    color: color.adjust($text-color, $lightness: 20%);
     margin-bottom: 20px;
   }
 }
@@ -212,13 +277,13 @@ $shadow-color: rgba(0, 0, 0, 0.1);
     }
 
     .relationship-probability {
-      color: lighten($text-color, 20%);
+      color: color.adjust($text-color, $lightness: 20%);
       font-family: monospace;
     }
 
     .inference-info {
       font-size: 0.9em;
-      color: lighten($text-color, 30%);
+      color: color.adjust($text-color, $lightness: 30%);
       font-style: italic;
     }
   }
@@ -229,14 +294,14 @@ $shadow-color: rgba(0, 0, 0, 0.1);
   align-items: center;
   justify-content: center;
   height: 200px;
-  color: lighten($text-color, 40%);
+  color: color.adjust($text-color, $lightness: 40%);
   font-style: italic;
 }
 
 // Utility classes
 .loading {
   text-align: center;
-  color: lighten($text-color, 40%);
+  color: color.adjust($text-color, $lightness: 40%);
   padding: 20px;
 }
 
