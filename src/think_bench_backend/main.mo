@@ -149,9 +149,10 @@ actor ConceptBase {
                 let updatedConcept = {
                     concept with
                     name = Option.get(name, concept.name);
-                    description = concept.description; // ?Option.get(description, concept.description);
+                    description = concept.description;
                     metadata = Option.get(metadata, concept.metadata);
                     modified = Time.now() : Time.Time;
+                    creator = concept.creator;
                 };
                 concepts.put(id, updatedConcept);
                 #ok()

@@ -21,13 +21,13 @@ module {
         let concept : Types.Concept = {
             id = nextId;
             name = name;
-            description = description : ?Text;
+            description = description;
             creator = {
                 principalId = caller;
                 timestamp = Time.now();
             };
             created = Time.now();
-            modified = Time.now() : Int;
+            modified = Time.now();
             outgoingRelationships = [];
             incomingRelationships = [];
             metadata = Option.get(metadata, []);

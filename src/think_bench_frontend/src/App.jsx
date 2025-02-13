@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { think_bench_backend } from '../../declarations/think_bench_backend';
+import { think_bench_backend, createActor as createBackendActor, canisterId as backendCanisterId } from 'declarations/think_bench_backend';
 import { AuthClient } from '@dfinity/auth-client';
 import { Actor, HttpAgent } from '@dfinity/agent';
 import './App.scss';
@@ -13,7 +13,7 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [identity, setIdentity] = useState(null);
   const [principal, setPrincipal] = useState(null);
-  const [actor, setActor] = useState(think_bench_backend);
+  const [actor, setActor] = useState(createBackendActor(backendCanisterId));
   const [concepts, setConcepts] = useState([]);
   const [selectedConcept, setSelectedConcept] = useState(null);
   const [relationships, setRelationships] = useState([]);
@@ -54,14 +54,11 @@ function App() {
         setIdentity(identity);
         setPrincipal(identity.getPrincipal().toString());
         // Create new actor with identity
-        const newActor = Actor.createActor(think_bench_backend.idlFactory, {
-          agent: new HttpAgent({
-            identity,
-            host: HOST,
-          }),
-          canisterId: think_bench_backend.canisterId,
-        });
-        setActor(newActor);
+        const agent = new HttpAgent();
+        agent.fetchRootKey();  // Needed for local development
+        agent.replaceIdentity(identity);
+        const backendActor = createBackendActor(backendCanisterId, { agentOptions: { identity } }); 
+        setActor(backendActor);
       }
     } catch (error) {
       console.error('Error initializing auth:', error);
@@ -78,14 +75,11 @@ function App() {
           setIdentity(identity);
           setPrincipal(identity.getPrincipal().toString());
           // Create new actor with identity
-          const newActor = Actor.createActor(think_bench_backend.idlFactory, {
-            agent: new HttpAgent({
-              identity,
-              host: HOST,
-            }),
-            canisterId: think_bench_backend.canisterId,
-          });
-          setActor(newActor);
+          const agent = new HttpAgent();
+          agent.fetchRootKey();  // Needed for local development
+          agent.replaceIdentity(identity);
+          const backendActor = createBackendActor(backendCanisterId, { agentOptions: { identity } }); 
+          setActor(backendActor);
           // Load concepts after successful login
           loadConcepts();
         },
