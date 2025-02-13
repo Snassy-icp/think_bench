@@ -241,6 +241,14 @@ $shadow-color: rgba(0, 0, 0, 0.1);
     color: color.adjust($text-color, $lightness: 20%);
     margin-bottom: 20px;
   }
+
+  .concept-creator-details {
+    color: color.adjust($text-color, $lightness: 30%);
+    font-size: 0.9em;
+    margin-bottom: 20px;
+    padding: 4px 0;
+    border-bottom: 1px solid $border-color;
+  }
 }
 
 .relationships {

@@ -427,6 +427,9 @@ function App() {
                 <div className="concept-details">
                   <h2>{selectedConcept.name}</h2>
                   {selectedConcept.description && <p>{selectedConcept.description}</p>}
+                  <div className="concept-creator-details">
+                    Created by: {selectedConcept.creator.principalId.toString().slice(0, 10)}...
+                  </div>
 
                   <div className="create-relationship">
                     <h3>Create New Relationship</h3>
