@@ -217,6 +217,46 @@ These architectural rules ensure:
 - Maintainable and testable code structure
 - Scalable module organization
 
+### Reserved Words and Naming Conventions
+
+#### 1. Reserved Words
+The following words are reserved in Motoko and MUST NOT be used as identifiers:
+- `query` - Cannot be used as a parameter name or variable name
+- `class` - Cannot be used as a type name or variable name
+- Other Motoko reserved words include: `actor`, `async`, `await`, `break`, `case`, `catch`, `continue`, `debug`, `else`, `false`, `for`, `func`, `if`, `in`, `import`, `module`, `null`, `object`, `private`, `public`, `return`, `shared`, `switch`, `system`, `throw`, `true`, `try`, `type`, `var`, `while`
+
+#### 2. Naming Conventions
+1. **Parameters and Variables**:
+   - Use descriptive names that avoid reserved words
+   - For query-related parameters, use terms like `searchParams`, `filter`, or `criteria` instead of `query`
+   - For class-like structures, use terms like `category`, `kind`, or `type` instead of `class`
+
+2. **Examples**:
+   ```motoko
+   // INCORRECT - uses reserved word 'query'
+   func searchConcepts(query: ConceptQuery)
+   
+   // CORRECT
+   func searchConcepts(criteria: ConceptQuery)
+   
+   // INCORRECT - uses reserved word 'class'
+   type class = {
+       name: Text;
+       properties: [Property];
+   };
+   
+   // CORRECT
+   type Category = {
+       name: Text;
+       properties: [Property];
+   };
+   ```
+
+3. **Best Practices**:
+   - Always check for reserved word conflicts when naming parameters
+   - Use domain-specific terminology that naturally avoids reserved words
+   - When in doubt, consult the Motoko language reference
+
 ## Overview
 This document specifies the structure and operations of a concept base system designed for logical reasoning and algebraic operations over concepts and their relationships.
 
