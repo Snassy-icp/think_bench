@@ -179,14 +179,35 @@ function App() {
   const loadRelationships = async (conceptId) => {
     try {
       setLoading(true);
-      const result = await think_bench_backend.inferRelationships({
+      // Get outgoing relationships (where this concept is the source)
+      const outgoingResult = await think_bench_backend.inferRelationships({
         startingConcept: conceptId,
         relationshipType: [],  // Optional: none
         maxDepth: [3],        // Optional: some(3)
         minProbability: [],   // Optional: none
       });
-      if ('ok' in result) {
-        setRelationships(result.ok.items);
+
+      // Get incoming relationships (where this concept is the target)
+      const incomingResult = await think_bench_backend.queryRelationships({
+        fromConceptId: [],           // Optional: none
+        toConceptId: [conceptId],    // This concept as target
+        relationshipTypeId: [],      // Optional: none
+        minProbability: [],          // Optional: none
+        maxProbability: [],          // Optional: none
+        metadata: [],                // Empty metadata constraints
+      });
+      
+      if ('ok' in outgoingResult && 'ok' in incomingResult) {
+        // Combine both sets of relationships
+        const allRelationships = [
+          ...outgoingResult.ok.items,
+          // Convert direct relationships to the same format as inferred ones
+          ...incomingResult.ok.items.map(rel => ({
+            relationship: rel,
+            source: { tag: 'Direct', value: rel.id }
+          }))
+        ];
+        setRelationships(allRelationships);
       } else {
         setError('Failed to load relationships');
       }
