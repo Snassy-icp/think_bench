@@ -54,8 +54,11 @@ module {
         denominator: Nat;
     };
 
-    // Probability is a special case of Fraction where 0 <= p <= 1
-    public type Probability = Fraction;
+    // Unit fraction type for values constrained to 0 <= n <= 1
+    public type UnitFraction = Fraction;
+
+    // Probability is semantically a unit fraction
+    public type Probability = UnitFraction;
 
     // Creator type for provenance tracking
     public type Creator = {
