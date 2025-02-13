@@ -4,6 +4,35 @@ module {
     public type RelationshipId = Nat;
     public type RelationshipTypeId = Nat;
 
+    // Core relationship type IDs (initialized during canister setup)
+    public let RELATIONSHIP_TYPE_IS_A: RelationshipTypeId = 0;
+    public let RELATIONSHIP_TYPE_HAS_A: RelationshipTypeId = 1;
+    public let RELATIONSHIP_TYPE_PART_OF: RelationshipTypeId = 2;
+    public let RELATIONSHIP_TYPE_PROPERTY_OF: RelationshipTypeId = 3;
+
+    // Inference types
+    public type InferenceSource = {
+        #Direct: RelationshipId;                  // Directly asserted relationship
+        #Transitive: {                            // Inferred through transitivity
+            first: RelationshipId;                // A IS-A B
+            second: RelationshipId;               // B IS-A C
+            probability: Probability;             // Combined probability
+        };
+        #Symmetric: RelationshipId;               // Inferred through symmetry (A->B implies B->A)
+    };
+
+    public type InferredRelationship = {
+        relationship: Relationship;
+        source: InferenceSource;
+    };
+
+    public type InferenceQuery = {
+        startingConcept: ConceptId;              // Start inference from this concept
+        relationshipType: ?RelationshipTypeId;    // Optional: only infer this type
+        maxDepth: ?Nat;                          // Optional: maximum inference depth
+        minProbability: ?Probability;            // Optional: minimum probability threshold
+    };
+
     // Value type for properties and metadata
     public type Value = {
         #Text: Text;
@@ -37,35 +66,52 @@ module {
         metadata: [(Text, Text)];
     };
 
-    // Relationship type properties
+    // Validation types
+    public type ValidationRule = {
+        #RequiredMetadata: [Text];  // Required metadata keys
+        #UniqueTarget;              // Target must be unique for this relationship type
+        #NoSelfReference;           // Source cannot equal target
+        #CustomRule: {              // Custom validation rule
+            name: Text;
+            description: Text;      // Description of what the rule validates
+            errorCode: Text;        // Error code to return if validation fails
+        };
+    };
+
+    // Enhanced relationship type properties
     public type RelationshipTypeProperties = {
         logical: {
-            transitive: Bool;
-            symmetric: Bool;
-            reflexive: Bool;
-            irreflexive: Bool;
-            antisymmetric: Bool;
-            asymmetric: Bool;
-            functional: Bool;
-            inverseFunctional: Bool;
+            transitive: Bool;      // If A->B->C then A->C
+            symmetric: Bool;       // If A->B then B->A
+            reflexive: Bool;       // A->A always holds
+            irreflexive: Bool;     // A->A never holds
         };
         inheritance: {
-            inheritable: Bool;
-            probabilityMode: {
-                #MULTIPLY;
-                #MINIMUM;
-                #MAXIMUM;
-                #OVERRIDE;
+            inheritable: Bool;     // Whether relationship inherits through IS-A
+            probabilityMode: {     // How probabilities combine during inference
+                #MULTIPLY;         // p1 * p2 (like IS-A chains)
+                #MINIMUM;          // min(p1, p2) (conservative)
+                #MAXIMUM;          // max(p1, p2) (optimistic)
+                #OVERRIDE;         // Most specific wins
             };
         };
+        validation: [ValidationRule];
     };
 
     // Relationship type definition
     public type RelationshipTypeDef = {
         id: RelationshipTypeId;
         name: Text;
+        description: ?Text;
         properties: RelationshipTypeProperties;
         metadata: [(Text, Text)];
+        status: {
+            #ACTIVE;
+            #DEPRECATED: {
+                replacedBy: ?RelationshipTypeId;
+                reason: Text;
+            };
+        };
     };
 
     // Core relationship type
@@ -111,11 +157,20 @@ module {
         #err: Text;
     };
 
-    // Error types
+    // Enhanced error types
     public type Error = {
-        #ValidationError: Text;
+        #ValidationError: {
+            code: Text;
+            message: Text;
+            details: ?{
+                field: Text;
+                constraint: Text;
+                value: Text;
+            };
+        };
         #NotFound: Text;
         #AlreadyExists: Text;
         #SystemError: Text;
+        #InvalidOperation: Text;
     };
 }

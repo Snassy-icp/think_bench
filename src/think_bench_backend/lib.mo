@@ -59,7 +59,15 @@ module {
 
         // Validate probability
         if (probability.denominator == 0 or probability.numerator > probability.denominator) {
-            return #err(#ValidationError("Invalid probability"));
+            return #err(#ValidationError({
+                code = "INVALID_PROBABILITY";
+                message = "Invalid probability values";
+                details = ?{
+                    field = "probability";
+                    constraint = "0 <= p <= 1";
+                    value = Nat.toText(probability.numerator) # "/" # Nat.toText(probability.denominator);
+                };
+            }));
         };
 
         let relationship : Types.Relationship = {
@@ -81,6 +89,142 @@ module {
             return false;
         };
         true
+    };
+
+    // Relationship Type Management
+    public func createRelationshipType(
+        types: [(Types.RelationshipTypeId, Types.RelationshipTypeDef)],
+        name: Text,
+        description: ?Text,
+        properties: Types.RelationshipTypeProperties,
+        metadata: [(Text, Text)],
+        nextId: Nat
+    ) : Types.Result<Types.RelationshipTypeDef, Types.Error> {
+        // Check if name is already taken
+        switch (Array.find<(Types.RelationshipTypeId, Types.RelationshipTypeDef)>(
+            types,
+            func((_, def)) = def.name == name
+        )) {
+            case (?_) return #err(#ValidationError({
+                code = "NAME_EXISTS";
+                message = "Relationship type with this name already exists";
+                details = ?{
+                    field = "name";
+                    constraint = "unique";
+                    value = name;
+                };
+            }));
+            case null {};
+        };
+
+        // Validate properties
+        if (properties.logical.reflexive and properties.logical.irreflexive) {
+            return #err(#ValidationError({
+                code = "INVALID_PROPERTIES";
+                message = "Relationship type cannot be both reflexive and irreflexive";
+                details = ?{
+                    field = "properties.logical";
+                    constraint = "mutually_exclusive";
+                    value = "reflexive and irreflexive";
+                };
+            }));
+        };
+
+        let relationshipType : Types.RelationshipTypeDef = {
+            id = nextId;
+            name = name;
+            description = description;
+            properties = properties;
+            metadata = metadata;
+            status = #ACTIVE;
+        };
+
+        #ok(relationshipType)
+    };
+
+    public func validateRelationshipAgainstType(
+        relationship: Types.Relationship,
+        relationshipType: Types.RelationshipTypeDef
+    ) : Types.Result<(), Types.Error> {
+        // Check if type is deprecated
+        switch (relationshipType.status) {
+            case (#DEPRECATED(info)) {
+                return #err(#ValidationError({
+                    code = "DEPRECATED_TYPE";
+                    message = "Relationship type is deprecated: " # info.reason;
+                    details = switch(info.replacedBy) {
+                        case (?replacement) ?{
+                            field = "relationshipTypeId";
+                            constraint = "deprecated";
+                            value = "Use type " # Nat.toText(replacement) # " instead";
+                        };
+                        case null null;
+                    };
+                }));
+            };
+            case (#ACTIVE) {};
+        };
+
+        // Apply validation rules
+        for (rule in relationshipType.properties.validation.vals()) {
+            switch (rule) {
+                case (#RequiredMetadata(keys)) {
+                    for (key in keys.vals()) {
+                        switch (Array.find<(Text, Text)>(relationship.metadata, func(entry) = entry.0 == key)) {
+                            case null return #err(#ValidationError({
+                                code = "MISSING_METADATA";
+                                message = "Required metadata key missing: " # key;
+                                details = ?{
+                                    field = "metadata";
+                                    constraint = "required";
+                                    value = key;
+                                };
+                            }));
+                            case (?_) {};
+                        };
+                    };
+                };
+                case (#UniqueTarget) {
+                    // This would need access to all relationships to validate
+                    // For now, we'll implement this in the main actor
+                };
+                case (#NoSelfReference) {
+                    if (relationship.fromConceptId == relationship.toConceptId) {
+                        return #err(#ValidationError({
+                            code = "SELF_REFERENCE";
+                            message = "Self-referential relationships not allowed for this type";
+                            details = ?{
+                                field = "toConceptId";
+                                constraint = "no_self_reference";
+                                value = Nat.toText(relationship.toConceptId);
+                            };
+                        }));
+                    };
+                };
+                case (#CustomRule(rule)) {
+                    return #err(#ValidationError({
+                        code = rule.errorCode;
+                        message = rule.description;
+                        details = null;
+                    }));
+                };
+            };
+        };
+
+        // Check logical properties
+        if (relationshipType.properties.logical.irreflexive and relationship.fromConceptId == relationship.toConceptId) {
+            return #err(#ValidationError({
+                code = "IRREFLEXIVE_VIOLATION";
+                message = "Irreflexive relationship cannot reference same concept";
+                details = ?{
+                    field = "toConceptId";
+                    constraint = "irreflexive";
+                    value = Nat.toText(relationship.toConceptId);
+                };
+            }));
+        };
+
+        #ok()
     };
 
     // Query Functions
@@ -190,6 +334,177 @@ module {
             };
         };
         
+        results
+    };
+
+    // Inference Functions
+    public func inferRelationships(
+        relationships: [(Types.RelationshipId, Types.Relationship)],
+        relationshipTypes: [(Types.RelationshipTypeId, Types.RelationshipTypeDef)],
+        inferenceParams: Types.InferenceQuery
+    ) : [Types.InferredRelationship] {
+        var results : [Types.InferredRelationship] = [];
+        var visited : [(Types.ConceptId, Types.ConceptId)] = []; // (from, to) pairs
+        
+        // Helper to check if a path has been visited
+        func isVisited(from: Types.ConceptId, to: Types.ConceptId) : Bool {
+            Array.find<(Types.ConceptId, Types.ConceptId)>(
+                visited,
+                func(pair) = pair.0 == from and pair.1 == to
+            ) != null
+        };
+
+        // Helper to multiply probabilities
+        func multiplyProbabilities(p1: Types.Probability, p2: Types.Probability) : Types.Probability {
+            {
+                numerator = p1.numerator * p2.numerator;
+                denominator = p1.denominator * p2.denominator;
+            }
+        };
+
+        // Helper to check if probability meets threshold
+        func meetsThreshold(p: Types.Probability, threshold: ?Types.Probability) : Bool {
+            switch (threshold) {
+                case null true;
+                case (?min) probabilityGreaterThanOrEqual(p, min);
+            };
+        };
+
+        // Helper to get relationship type properties
+        func getTypeProperties(typeId: Types.RelationshipTypeId) : ?Types.RelationshipTypeProperties {
+            switch (Array.find<(Types.RelationshipTypeId, Types.RelationshipTypeDef)>(
+                relationshipTypes,
+                func((id, _)) = id == typeId
+            )) {
+                case (?entry) ?entry.1.properties;
+                case null null;
+            };
+        };
+
+        // Get all direct relationships from the starting concept
+        let directRelationships = Array.filter<(Types.RelationshipId, Types.Relationship)>(
+            relationships,
+            func((_, rel)) = 
+                rel.fromConceptId == inferenceParams.startingConcept and
+                (
+                    switch (inferenceParams.relationshipType) {
+                        case (?typeId) rel.relationshipTypeId == typeId;
+                        case null rel.relationshipTypeId == Types.RELATIONSHIP_TYPE_IS_A;
+                    }
+                )
+        );
+
+        // Add direct relationships to results
+        for ((id, rel) in directRelationships.vals()) {
+            if (meetsThreshold(rel.probability, inferenceParams.minProbability)) {
+                results := Array.append(results, [{
+                    relationship = rel;
+                    source = #Direct(id);
+                }]);
+                visited := Array.append(visited, [(rel.fromConceptId, rel.toConceptId)]);
+
+                // Handle symmetric relationships
+                switch (getTypeProperties(rel.relationshipTypeId)) {
+                    case (?props) {
+                        if (props.logical.symmetric) {
+                            // Create symmetric relationship
+                            let symRel : Types.Relationship = {
+                                id = rel.id;  // Use same ID for symmetric pair
+                                fromConceptId = rel.toConceptId;
+                                toConceptId = rel.fromConceptId;
+                                relationshipTypeId = rel.relationshipTypeId;
+                                probability = rel.probability;
+                                metadata = rel.metadata;
+                            };
+                            
+                            if (not isVisited(symRel.fromConceptId, symRel.toConceptId)) {
+                                results := Array.append(results, [{
+                                    relationship = symRel;
+                                    source = #Symmetric(id);
+                                }]);
+                                visited := Array.append(visited, [(symRel.fromConceptId, symRel.toConceptId)]);
+                            };
+                        };
+                    };
+                    case null {};
+                };
+            };
+        };
+
+        // Recursively find transitive relationships
+        func findTransitive(
+            currentId: Types.ConceptId,
+            depth: Nat,
+            currentProb: Types.Probability
+        ) {
+            // Check depth limit
+            switch (inferenceParams.maxDepth) {
+                case (?maxDepth) if (depth >= maxDepth) return;
+                case null {};
+            };
+
+            // Get relationships where current concept is the source
+            let nextRelationships = Array.filter<(Types.RelationshipId, Types.Relationship)>(
+                relationships,
+                func((_, rel)) = 
+                    rel.fromConceptId == currentId and
+                    (
+                        switch (inferenceParams.relationshipType) {
+                            case (?typeId) rel.relationshipTypeId == typeId;
+                            case null rel.relationshipTypeId == Types.RELATIONSHIP_TYPE_IS_A;
+                        }
+                    )
+            );
+
+            // Process each relationship
+            for ((id, rel) in nextRelationships.vals()) {
+                let newProb = multiplyProbabilities(currentProb, rel.probability);
+                
+                // Only proceed if probability meets threshold
+                if (meetsThreshold(newProb, inferenceParams.minProbability)) {
+                    // Check if we've already visited this path
+                    if (not isVisited(inferenceParams.startingConcept, rel.toConceptId)) {
+                        // Create inferred relationship
+                        let inferredRel : Types.Relationship = {
+                            id = rel.id;  // We'll use the same ID for now
+                            fromConceptId = inferenceParams.startingConcept;
+                            toConceptId = rel.toConceptId;
+                            relationshipTypeId = rel.relationshipTypeId;
+                            probability = newProb;
+                            metadata = rel.metadata;
+                        };
+
+                        results := Array.append(results, [{
+                            relationship = inferredRel;
+                            source = #Transitive({
+                                first = id;
+                                second = rel.id;
+                                probability = newProb;
+                            });
+                        }]);
+
+                        visited := Array.append(visited, [(inferenceParams.startingConcept, rel.toConceptId)]);
+
+                        // Continue inference from this point
+                        findTransitive(rel.toConceptId, depth + 1, newProb);
+                    };
+                };
+            };
+        };
+
+        // Start transitive inference from each direct relationship
+        for ((_, rel) in directRelationships.vals()) {
+            // Only do transitive inference for transitive relationship types
+            switch (getTypeProperties(rel.relationshipTypeId)) {
+                case (?props) {
+                    if (props.logical.transitive) {
+                        findTransitive(rel.toConceptId, 1, rel.probability);
+                    };
+                };
+                case null {};
+            };
+        };
+
         results
     };
 
