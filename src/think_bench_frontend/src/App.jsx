@@ -114,26 +114,44 @@ function App() {
 
     try {
       setLoading(true);
+      setError(null); // Clear any previous errors
+
+      // Validate probability values
+      const { numerator, denominator } = newRelationshipData.probability;
+      if (denominator <= 0 || numerator > denominator) {
+        setError('Invalid probability: numerator must be less than or equal to denominator, and denominator must be positive');
+        return;
+      }
+
       const result = await think_bench_backend.assertRelationship(
-        BigInt(selectedConcept.id),  // Convert string to BigInt for Motoko
+        BigInt(selectedConcept.id),
         BigInt(newRelationshipData.targetConceptId),
         BigInt(newRelationshipData.relationshipTypeId),
-        newRelationshipData.probability,
+        {
+          numerator: Number(numerator),
+          denominator: Number(denominator)
+        },
         [] // Optional metadata: none
       );
       
       if ('ok' in result) {
+        // Reset form and reload relationships
         setNewRelationshipData({
           targetConceptId: '',
           relationshipTypeId: '0',
           probability: { numerator: 1, denominator: 1 }
         });
-        loadRelationships(BigInt(selectedConcept.id));  // Convert string to BigInt for Motoko
-      } else {
-        setError('Failed to create relationship');
+        await loadRelationships(BigInt(selectedConcept.id));
+      } else if ('err' in result) {
+        // Handle specific error messages from the backend
+        const errorMessage = result.err.ValidationError?.message || 
+                           result.err.NotFound || 
+                           result.err.InvalidOperation ||
+                           'Failed to create relationship';
+        setError(errorMessage);
       }
     } catch (err) {
-      setError(err.message);
+      setError(err.message || 'An unexpected error occurred');
     } finally {
       setLoading(false);
     }
