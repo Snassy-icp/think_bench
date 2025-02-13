@@ -2552,3 +2552,88 @@ These rules ensure:
    // Sending to Motoko
    const motokoBigInt = BigInt(storedId);  // When calling Motoko functions
    ```
+
+### Provenance Requirements
+
+#### 1. Creator Information
+- Each Concept and Relationship MUST store:
+  - Creator's Principal ID
+  - Creation timestamp
+- This information MUST be immutable once set
+
+#### 2. Access Control
+- All users can VIEW all concepts and relationships
+- Only creators can MODIFY or DELETE their own concepts/relationships
+- System-level operations (e.g., relationship type management) remain unrestricted
+
+#### 3. Type Definitions
+```motoko
+// In Types.mo
+public type Creator = {
+    principalId: Principal;
+    timestamp: Int;  // Time.now() value
+};
+
+// Updated core types
+public type Concept = {
+    id: ConceptId;
+    name: Text;
+    description: ?Text;
+    creator: Creator;  // New field
+    // ... existing fields ...
+};
+
+public type Relationship = {
+    id: RelationshipId;
+    fromConceptId: ConceptId;
+    toConceptId: ConceptId;
+    relationshipTypeId: RelationshipTypeId;
+    probability: Probability;
+    creator: Creator;  // New field
+    // ... existing fields ...
+};
+```
+
+#### 4. Query Support
+- All query functions MUST support filtering by creator:
+```motoko
+public type ConceptQuery = {
+    // ... existing fields ...
+    creator: ?Principal;  // Optional creator filter
+};
+
+public type RelationshipQuery = {
+    // ... existing fields ...
+    creator: ?Principal;  // Optional creator filter
+};
+```
+
+#### 5. Frontend Display
+- The UI MUST display the creator's Principal ID for each concept and relationship
+- The UI MUST clearly indicate which items the current user can modify/delete
+- Creation timestamps should be displayed in a user-friendly format
+
+#### 6. Validation Rules
+1. Creator information MUST be set during creation
+2. Creator information CANNOT be modified after creation
+3. Only the creator can modify or delete their concepts/relationships
+4. System must validate creator permissions before any modification operation
+
+#### 7. Error Handling
+New error types for permission-related issues:
+```motoko
+public type Error = {
+    // ... existing error types ...
+    #PermissionDenied: {
+        operation: Text;  // What operation was attempted
+        resource: Text;   // What resource was targeted
+        reason: Text;     // Why it was denied
+    };
+};
+```
+
+These provenance requirements ensure:
+- Clear ownership tracking of all concepts and relationships
+- Proper access control based on ownership
+- Transparent display of creator information
+- Secure validation of modification permissions
