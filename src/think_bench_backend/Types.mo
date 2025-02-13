@@ -48,11 +48,14 @@ module {
         nanoseconds: Int;
     };
 
-    // Probability representation
-    public type Probability = {
+    // Generic fraction type for representing ratios
+    public type Fraction = {
         numerator: Nat;
         denominator: Nat;
     };
+
+    // Probability is a special case of Fraction where 0 <= p <= 1
+    public type Probability = Fraction;
 
     // Creator type for provenance tracking
     public type Creator = {
