@@ -770,6 +770,182 @@ actor ConceptBase {
 
     public query func listRelationshipTypes(
     ) : async [(RelationshipTypeId, RelationshipTypeDef)];
+
+    // Relationship Type Management
+    public shared(msg) func deprecateRelationshipType(
+        id: RelationshipTypeId,
+        replacedBy: ?RelationshipTypeId,
+        reason: Text
+    ) : async Result<(), Text>;
+
+    public shared(msg) func validateRelationshipType(
+        id: RelationshipTypeId
+    ) : async Result<{
+        valid: Bool;
+        violations: [{
+            rule: Text;
+            details: Text;
+        }];
+    }, Text>;
+
+    // Index Management
+    public shared(msg) func rebuildIndices() : async Result<(), Text>;
+    
+    public query func verifyIndexConsistency() : async Result<{
+        consistent: Bool;
+        issues: [{
+            type: {
+                #MISSING_FORWARD;
+                #MISSING_REVERSE;
+                #MISSING_TYPE;
+                #DANGLING_REFERENCE;
+                #DUPLICATE_ENTRY;
+            };
+            details: Text;
+        }];
+    }, Text>;
+
+    // Inference Management
+    public shared(msg) func configureInference(
+        settings: {
+            maxDepth: ?Nat;
+            maxTime: ?Duration;
+            maxRelationships: ?Nat;
+            enabledRules: [Text];
+        }
+    ) : async Result<(), Text>;
+
+    public query func getInferenceStats() : async Result<{
+        totalInferences: Nat;
+        averageTime: Duration;
+        maxTimeReached: Nat;
+        maxDepthReached: Nat;
+        failedInferences: Nat;
+        ruleStats: [(Text, Nat)];
+    }, Text>;
+
+    // Conflict Management
+    public shared(msg) func resolveConflict(
+        relationshipId: RelationshipId,
+        conflictingId: RelationshipId,
+        resolution: {
+            #KEEP_FIRST;
+            #KEEP_SECOND;
+            #KEEP_BOTH;
+            #CUSTOM: {
+                probability: Probability;
+                reason: Text;
+            };
+        }
+    ) : async Result<(), Text>;
+
+    public query func findConflicts(
+        query: {
+            relationshipTypes: ?[RelationshipTypeId];
+            minProbabilityDiff: ?Probability;
+            temporalOverlap: Bool;
+            includeResolved: Bool;
+        }
+    ) : async Result<[{
+        first: RelationshipId;
+        second: RelationshipId;
+        type: {
+            #PROBABILITY_CONFLICT;
+            #TEMPORAL_CONFLICT;
+            #LOGICAL_CONFLICT;
+            #CONSTRAINT_VIOLATION;
+        };
+        status: {
+            #UNRESOLVED;
+            #RESOLVED: {
+                timestamp: Time.Time;
+                actor: Principal;
+                resolution: Text;
+            };
+        };
+    }], Text>;
+
+    // Provenance Tracking
+    public query func getProvenanceChain(
+        relationshipId: RelationshipId
+    ) : async Result<[{
+        relationship: RelationshipId;
+        provenance: Provenance;
+        children: [RelationshipId];
+    }], Text>;
+
+    public shared(msg) func invalidateProvenance(
+        relationshipId: RelationshipId,
+        reason: Text
+    ) : async Result<{
+        invalidated: [RelationshipId];
+        recomputed: [RelationshipId];
+        failed: [(RelationshipId, Text)];
+    }, Text>;
+
+    // System Management
+    public shared(msg) func getSystemHealth() : async {
+        indices: {
+            consistent: Bool;
+            lastVerified: Time.Time;
+            issues: Nat;
+        };
+        inference: {
+            active: Bool;
+            queueSize: Nat;
+            lastRun: Time.Time;
+            errors: Nat;
+        };
+        storage: {
+            conceptCount: Nat;
+            relationshipCount: Nat;
+            inferredCount: Nat;
+        };
+        performance: {
+            averageQueryTime: Duration;
+            averageInferenceTime: Duration;
+            indexUpdateTime: Duration;
+        };
+    };
+
+    // Required helper functions
+    private func validateProbability(p: Probability) : Bool {
+        p.numerator <= p.denominator and p.denominator > 0
+    };
+
+    private func normalizeRelationship(r: Relationship) : Relationship {
+        // Implement normalization logic
+        // 1. Normalize probability
+        // 2. Sort metadata
+        // 3. Validate temporal constraints
+        // 4. Check relationship type constraints
+        // Return normalized relationship
+    };
+
+    private func updateIndices(
+        relationship: Relationship,
+        operation: {#ADD; #REMOVE; #UPDATE}
+    ) : async Result<(), Text> {
+        // Implement atomic index update
+        // 1. Validate operation
+        // 2. Prepare changes
+        // 3. Apply changes atomically
+        // 4. Verify consistency
+        // 5. Rollback if needed
+    };
+
+    private func computeInference(
+        relationship: Relationship,
+        rules: [Text],
+        maxDepth: Nat
+    ) : async Result<[Relationship], Text> {
+        // Implement inference computation
+        // 1. Apply inference rules in order
+        // 2. Track provenance
+        // 3. Validate results
+        // 4. Handle conflicts
+        // Return inferred relationships
+    };
 };
 ```
 
@@ -1215,4 +1391,800 @@ func getConceptIncomingRelationships(
         };
         case null [];
     }
+};
+```
+
+// Missing core type definitions
+type Value = {
+    #Text: Text;
+    #Int: Int;
+    #Float: Float;
+    #Bool: Bool;
+    #Array: [Value];
+    #Object: [(Text, Value)];
+};
+
+type Duration = {
+    nanoseconds: Int;
+};
+
+type Provenance = {
+    source: {
+        #DIRECT_ASSERTION: {
+            timestamp: Time.Time;
+            actor: Principal;
+        };
+        #LOGICAL_DEDUCTION: {
+            premises: [RelationshipId];
+            inferenceRule: Text;
+            timestamp: Time.Time;
+        };
+        #INHERITANCE: {
+            sourceRelationship: RelationshipId;
+            inheritancePath: [RelationshipId];
+            timestamp: Time.Time;
+        };
+        #EXTERNAL: {
+            reference: Text;
+            timestamp: Time.Time;
+            metadata: [(Text, Text)];
+        };
+        #EMPIRICAL: {
+            experimentId: Text;
+            timestamp: Time.Time;
+            confidence: Probability;
+            metadata: [(Text, Text)];
+        };
+    };
+    version: Nat;  // For tracking changes to the provenance record
+    history: [{
+        action: {
+            #CREATED;
+            #MODIFIED;
+            #INVALIDATED;
+            #RECOMPUTED;
+        };
+        timestamp: Time.Time;
+        actor: Principal;
+        reason: ?Text;
+    }];
+};
+
+type InheritanceStatus = {
+    #EXPLICIT;    // Directly asserted, overrides inheritance
+    #INHERITED: { // Derived through inheritance rules
+        from: RelationshipId;
+        path: [RelationshipId];
+    };
+    #COMPUTED: {  // Derived through other inference rules
+        rule: Text;
+        premises: [RelationshipId];
+    };
+};
+
+// Query type for relationships
+type RelationshipQuery = {
+    fromConceptId: ?ConceptId;
+    toConceptId: ?ConceptId;
+    relationshipTypeId: ?RelationshipTypeId;
+    minProbability: ?Probability;
+    maxProbability: ?Probability;
+    temporalConstraints: ?{
+        validAt: ?Time.Time;
+        validFrom: ?Time.Time;
+        validTo: ?Time.Time;
+    };
+    inheritanceStatus: ?InheritanceStatus;
+    provenanceConstraints: ?{
+        sources: [Text];
+        minVersion: ?Nat;
+        maxVersion: ?Nat;
+        actors: [Principal];
+    };
+    metadata: [(Text, Text)];
+    page: Nat;
+    pageSize: Nat;
+};
+
+// Behavioral requirements for key operations
+type OperationBehavior = {
+    // Relationship assertion behavior
+    assertRelationship: {
+        // Pre-conditions that must be met
+        preconditions: [
+            "Source concept must exist",
+            "Target concept must exist",
+            "Relationship type must be active",
+            "Probability must be valid (0 ≤ p ≤ 1)",
+            "Temporal constraints must be valid (if provided)",
+            "Actor must have permission to assert relationships"
+        ];
+        
+        // Validation steps in order
+        validationSteps: [
+            "1. Validate relationship type constraints",
+            "2. Check for conflicting relationships",
+            "3. Validate probability against type rules",
+            "4. Check temporal consistency",
+            "5. Verify provenance requirements"
+        ];
+        
+        // Side effects that must occur
+        sideEffects: [
+            "1. Create relationship record",
+            "2. Update concept indices",
+            "3. Update relationship indices",
+            "4. Trigger inference engine",
+            "5. Log operation in history"
+        ];
+        
+        // Error conditions that must be handled
+        errorConditions: [
+            "Invalid probability",
+            "Conflicting relationship exists",
+            "Constraint violation",
+            "Index update failure",
+            "Permission denied"
+        ];
+        
+        // Rollback procedure if operation fails
+        rollback: [
+            "1. Remove relationship record if created",
+            "2. Restore concept indices",
+            "3. Restore relationship indices",
+            "4. Log rollback in history"
+        ];
+    };
+    
+    // Inference behavior
+    inference: {
+        // When inference should run
+        triggers: [
+            "New relationship assertion",
+            "Relationship update",
+            "Relationship deletion",
+            "Explicit inference request"
+        ];
+        
+        // Order of inference rules
+        ruleOrder: [
+            "1. Direct transitive inference",
+            "2. Property inheritance",
+            "3. Inverse relationships",
+            "4. Composition rules",
+            "5. Distribution rules"
+        ];
+        
+        // Conflict resolution order
+        conflictResolution: [
+            "1. Explicit overrides",
+            "2. Temporal precedence",
+            "3. Source authority",
+            "4. Probability comparison"
+        ];
+        
+        // Performance requirements
+        performance: {
+            maxInferenceDepth: Nat = 10;
+            maxInferenceTime: Duration = { nanoseconds = 5_000_000_000 }; // 5 seconds
+            maxRelationshipsPerQuery: Nat = 1000;
+        };
+    };
+    
+    // Index maintenance behavior
+    indexing: {
+        // When indices should be updated
+        updateTriggers: [
+            "Relationship creation",
+            "Relationship modification",
+            "Relationship deletion"
+        ];
+        
+        // Required index consistency checks
+        consistencyChecks: [
+            "Forward/reverse index symmetry",
+            "Type index completeness",
+            "No dangling references",
+            "No duplicate entries"
+        ];
+        
+        // Recovery procedures
+        recovery: [
+            "1. Log inconsistency",
+            "2. Attempt automatic repair",
+            "3. If repair fails, mark as invalid",
+            "4. Notify system administrator"
+        ];
+    };
+};
+
+// Required system invariants
+type SystemInvariants = {
+    relationships: [
+        "All relationships must have valid source and target concepts",
+        "All relationships must have valid relationship types",
+        "All probabilities must be normalized and valid",
+        "Inverse relationships must be symmetric",
+        "Temporal constraints must be internally consistent"
+    ];
+    
+    concepts: [
+        "All concept IDs must be unique",
+        "All concept names must be non-empty",
+        "All concepts must have valid metadata"
+    ];
+    
+    indices: [
+        "Forward and reverse indices must be symmetric",
+        "Type index must contain all relationships",
+        "No index may contain dangling references"
+    ];
+    
+    inference: [
+        "Inferred relationships must maintain provenance",
+        "Circular inference must be prevented",
+        "Probability calculations must maintain bounds",
+        "Temporal inference must maintain causality"
+    ];
+};
+```
+
+### 6. Storage and Persistence
+
+#### 6.1 Stable Storage Requirements
+```motoko
+// Core stable storage variables
+stable var nextConceptId: Nat = 0;
+stable var nextRelationshipId: Nat = 0;
+stable var nextRelationshipTypeId: Nat = 0;
+
+// Main data stores
+stable var concepts: [(ConceptId, Concept)] = [];
+stable var relationships: [(RelationshipId, Relationship)] = [];
+stable var relationshipTypes: [(RelationshipTypeId, RelationshipTypeDef)] = [];
+
+// Index storage
+stable var relationshipIndex: RelationshipIndex = {
+    forwardIndex = [];
+    reverseIndex = [];
+    typeIndex = [];
+};
+
+// System state
+stable var systemState: {
+    version: Nat;
+    lastUpgrade: Time.Time;
+    indexLastVerified: Time.Time;
+    statistics: {
+        conceptCount: Nat;
+        relationshipCount: Nat;
+        inferredRelationshipCount: Nat;
+        errorCount: Nat;
+    };
+} = {
+    version = 0;
+    lastUpgrade = Time.now();
+    indexLastVerified = Time.now();
+    statistics = {
+        conceptCount = 0;
+        relationshipCount = 0;
+        inferredRelationshipCount = 0;
+        errorCount = 0;
+    };
+};
+```
+
+#### 6.2 Upgrade Handling
+```motoko
+system func preupgrade() {
+    // Verify system state before upgrade
+    assert(verifySystemState());
+    
+    // Prepare data for upgrade
+    prepareForUpgrade();
+};
+
+system func postupgrade() {
+    // Verify data integrity after upgrade
+    assert(verifyDataIntegrity());
+    
+    // Initialize new version
+    initializeNewVersion();
+    
+    // Update system state
+    systemState := {
+        version = systemState.version + 1;
+        lastUpgrade = Time.now();
+        indexLastVerified = Time.now();
+        statistics = recomputeStatistics();
+    };
+};
+
+// Helper functions for upgrade handling
+func verifySystemState() : Bool {
+    // 1. Verify all indices are consistent
+    let indexValid = verifyIndexConsistency();
+    
+    // 2. Verify all relationships are valid
+    let relationshipsValid = relationships.vals().all(validateRelationship);
+    
+    // 3. Verify all concepts exist
+    let conceptsValid = concepts.vals().all(validateConcept);
+    
+    // 4. Verify all relationship types are valid
+    let typesValid = relationshipTypes.vals().all(validateRelationshipType);
+    
+    indexValid and relationshipsValid and conceptsValid and typesValid
+};
+
+func verifyDataIntegrity() : Bool {
+    // 1. Check for data corruption
+    let dataValid = validateDataStructures();
+    
+    // 2. Verify all references are valid
+    let referencesValid = validateReferences();
+    
+    // 3. Check version compatibility
+    let versionCompatible = checkVersionCompatibility();
+    
+    dataValid and referencesValid and versionCompatible
+};
+
+func prepareForUpgrade() {
+    // 1. Complete pending operations
+    completePendingOperations();
+    
+    // 2. Save checkpoint
+    saveCheckpoint();
+    
+    // 3. Clean up temporary data
+    cleanupTemporaryData();
+};
+
+func initializeNewVersion() {
+    // 1. Initialize new data structures
+    initializeNewDataStructures();
+    
+    // 2. Migrate data if needed
+    migrateData();
+    
+    // 3. Rebuild indices
+    rebuildIndices();
+    
+    // 4. Initialize new features
+    initializeNewFeatures();
+};
+```
+
+#### 6.3 Data Integrity Requirements
+
+```motoko
+// Required data integrity checks
+type DataIntegrityCheck = {
+    // Concept integrity
+    validateConcept: func (concept: Concept) : Bool {
+        // 1. ID must be unique
+        // 2. Name must be non-empty
+        // 3. All relationship references must be valid
+        // 4. Metadata must be valid
+        // 5. Timestamps must be valid
+    };
+    
+    // Relationship integrity
+    validateRelationship: func (relationship: Relationship) : Bool {
+        // 1. ID must be unique
+        // 2. Source and target concepts must exist
+        // 3. Relationship type must be valid
+        // 4. Probability must be normalized
+        // 5. Temporal constraints must be valid
+        // 6. Provenance must be valid
+        // 7. Conflict references must be valid
+    };
+    
+    // Index integrity
+    validateIndices: func () : Bool {
+        // 1. Forward/reverse symmetry
+        // 2. No missing entries
+        // 3. No duplicate entries
+        // 4. No dangling references
+        // 5. Type index completeness
+    };
+    
+    // System state integrity
+    validateSystemState: func () : Bool {
+        // 1. Version number validity
+        // 2. Statistics accuracy
+        // 3. Timestamp consistency
+        // 4. Resource limits
+    };
+};
+
+// Recovery procedures
+type RecoveryProcedure = {
+    // Index recovery
+    recoverIndices: func () : async Result<(), Text> {
+        // 1. Log recovery attempt
+        // 2. Create temporary indices
+        // 3. Rebuild from relationships
+        // 4. Verify new indices
+        // 5. Swap if valid
+    };
+    
+    // Relationship recovery
+    recoverRelationships: func () : async Result<(), Text> {
+        // 1. Identify invalid relationships
+        // 2. Attempt repair
+        // 3. Remove if unrepairable
+        // 4. Update indices
+        // 5. Log changes
+    };
+    
+    // Concept recovery
+    recoverConcepts: func () : async Result<(), Text> {
+        // 1. Identify invalid concepts
+        // 2. Remove dangling relationships
+        // 3. Update indices
+        // 4. Log changes
+    };
+};
+```
+
+#### 6.4 Performance Requirements
+
+```motoko
+type PerformanceRequirements = {
+    // Query performance
+    queryLatency: {
+        maxSimpleQuery: Duration = { nanoseconds = 100_000_000 }; // 100ms
+        maxComplexQuery: Duration = { nanoseconds = 1_000_000_000 }; // 1s
+        maxInferenceQuery: Duration = { nanoseconds = 5_000_000_000 }; // 5s
+    };
+    
+    // Storage limits
+    storageLimits: {
+        maxConcepts: Nat = 1_000_000;
+        maxRelationships: Nat = 10_000_000;
+        maxRelationshipTypes: Nat = 1_000;
+        maxMetadataSize: Nat = 10_000; // bytes per entity
+    };
+    
+    // Index performance
+    indexing: {
+        maxUpdateTime: Duration = { nanoseconds = 100_000_000 }; // 100ms
+        maxRebuildTime: Duration = { nanoseconds = 300_000_000_000 }; // 5min
+        maxVerificationTime: Duration = { nanoseconds = 60_000_000_000 }; // 1min
+    };
+    
+    // Inference performance
+    inference: {
+        maxDepth: Nat = 10;
+        maxBreadth: Nat = 1000;
+        maxTime: Duration = { nanoseconds = 5_000_000_000 }; // 5s
+        maxRelationships: Nat = 10000;
+    };
+};
+```
+
+### 7. Initialization and Error Handling
+
+#### 7.1 Canister Initialization
+```motoko
+// Required initialization sequence
+system func init() {
+    // 1. Initialize core relationship types
+    initializeCoreRelationshipTypes();
+    
+    // 2. Initialize indices
+    initializeIndices();
+    
+    // 3. Initialize system state
+    initializeSystemState();
+};
+
+// Core relationship type initialization
+func initializeCoreRelationshipTypes() {
+    // IS-A relationship type
+    let isAType = createRelationshipType({
+        name = "IS_A";
+        properties = {
+            logical = {
+                transitive = true;
+                symmetric = false;
+                reflexive = false;
+                irreflexive = true;
+                antisymmetric = true;
+                asymmetric = true;
+                functional = false;
+                inverseFunctional = false;
+            };
+            inheritance = {
+                inheritable = true;
+                probabilityMode = #MULTIPLY;
+                temporalMode = #INHERIT_RANGE;
+            };
+            interactions = {
+                inverse = null;
+                implies = [];
+                conflicts = [];
+            };
+            validation = {
+                sourceConstraints = [];
+                targetConstraints = [];
+                relationshipConstraints = [
+                    #PROBABILITY_RANGE({
+                        min = ?{ numerator = 1; denominator = 1 };
+                        max = ?{ numerator = 1; denominator = 1 };
+                    })
+                ];
+            };
+        };
+        metadata = [];
+    });
+    assert(isAType == RELATIONSHIP_TYPE_IS_A);
+
+    // HAS-A relationship type
+    let hasAType = createRelationshipType({
+        name = "HAS_A";
+        properties = {
+            logical = {
+                transitive = false;
+                symmetric = false;
+                reflexive = false;
+                irreflexive = true;
+                antisymmetric = true;
+                asymmetric = true;
+                functional = false;
+                inverseFunctional = false;
+            };
+            inheritance = {
+                inheritable = true;
+                probabilityMode = #MULTIPLY;
+                temporalMode = #INHERIT_RANGE;
+            };
+            interactions = {
+                inverse = ?{
+                    relationshipTypeId = RELATIONSHIP_TYPE_PART_OF;
+                    probabilityMapping = #PRESERVE;
+                };
+                implies = [];
+                conflicts = [];
+            };
+            validation = defaultValidation;
+        };
+        metadata = [];
+    });
+    assert(hasAType == RELATIONSHIP_TYPE_HAS_A);
+
+    // PART-OF relationship type
+    let partOfType = createRelationshipType({
+        name = "PART_OF";
+        properties = {
+            logical = {
+                transitive = true;
+                symmetric = false;
+                reflexive = false;
+                irreflexive = true;
+                antisymmetric = true;
+                asymmetric = true;
+                functional = false;
+                inverseFunctional = false;
+            };
+            inheritance = {
+                inheritable = true;
+                probabilityMode = #MULTIPLY;
+                temporalMode = #INHERIT_RANGE;
+            };
+            interactions = {
+                inverse = ?{
+                    relationshipTypeId = RELATIONSHIP_TYPE_HAS_A;
+                    probabilityMapping = #PRESERVE;
+                };
+                implies = [];
+                conflicts = [];
+            };
+            validation = defaultValidation;
+        };
+        metadata = [];
+    });
+    assert(partOfType == RELATIONSHIP_TYPE_PART_OF);
+
+    // PROPERTY-OF relationship type
+    let propertyOfType = createRelationshipType({
+        name = "PROPERTY_OF";
+        properties = {
+            logical = {
+                transitive = false;
+                symmetric = false;
+                reflexive = false;
+                irreflexive = true;
+                antisymmetric = true;
+                asymmetric = true;
+                functional = true;
+                inverseFunctional = false;
+            };
+            inheritance = {
+                inheritable = true;
+                probabilityMode = #MINIMUM;
+                temporalMode = #INHERIT_LATEST;
+            };
+            interactions = {
+                inverse = null;
+                implies = [];
+                conflicts = [];
+            };
+            validation = defaultValidation;
+        };
+        metadata = [];
+    });
+    assert(propertyOfType == RELATIONSHIP_TYPE_PROPERTY_OF);
+};
+
+#### 7.2 Error Handling Specification
+```motoko
+// Comprehensive error type
+type Error = {
+    #VALIDATION_ERROR: {
+        code: Text;
+        message: Text;
+        details: ?{
+            field: Text;
+            constraint: Text;
+            value: Text;
+        };
+    };
+    #CONSTRAINT_VIOLATION: {
+        code: Text;
+        message: Text;
+        relationships: [RelationshipId];
+    };
+    #RESOURCE_NOT_FOUND: {
+        code: Text;
+        message: Text;
+        resourceType: Text;
+        resourceId: Text;
+    };
+    #PERMISSION_DENIED: {
+        code: Text;
+        message: Text;
+        requiredPermission: Text;
+        principal: Principal;
+    };
+    #SYSTEM_ERROR: {
+        code: Text;
+        message: Text;
+        recoverable: Bool;
+        action: {
+            #RETRY;
+            #CONTACT_ADMIN;
+            #CHECK_LOGS;
+        };
+    };
+    #DATA_INTEGRITY_ERROR: {
+        code: Text;
+        message: Text;
+        affectedData: {
+            concepts: [ConceptId];
+            relationships: [RelationshipId];
+            indices: [Text];
+        };
+        recovery: {
+            automatic: Bool;
+            procedure: Text;
+        };
+    };
+};
+
+// Error handling behavior
+type ErrorHandlingBehavior = {
+    // Validation errors
+    validation: {
+        // Pre-condition validation
+        preConditions: func (operation: Text, args: [(Text, Value)]) : Result<(), Error>;
+        
+        // Post-condition validation
+        postConditions: func (operation: Text, result: Value) : Result<(), Error>;
+        
+        // Invariant validation
+        invariants: func () : Result<(), Error>;
+    };
+
+    // Transaction handling
+    transactions: {
+        // Start transaction
+        begin: func () : Result<(), Error>;
+        
+        // Commit transaction
+        commit: func () : Result<(), Error>;
+        
+        // Rollback transaction
+        rollback: func () : Result<(), Error>;
+        
+        // Transaction boundaries
+        boundaries: {
+            maxOperations: Nat = 100;
+            maxDuration: Duration = { nanoseconds = 10_000_000_000 }; // 10s
+        };
+    };
+
+    // Recovery procedures
+    recovery: {
+        // Automatic recovery attempts
+        automaticRecovery: func (error: Error) : async Result<(), Error>;
+        
+        // Manual recovery procedures
+        manualRecovery: func (error: Error) : Text;
+        
+        // Recovery limits
+        limits: {
+            maxAttempts: Nat = 3;
+            backoffStrategy: [(Nat, Duration)];
+            requireAdmin: [Text];  // Error codes requiring admin intervention
+        };
+    };
+};
+
+// Error reporting
+type ErrorReporting = {
+    // Log error
+    logError: func (error: Error, context: {
+        operation: Text;
+        timestamp: Time.Time;
+        actor: Principal;
+        args: [(Text, Value)];
+    }) : ();
+
+    // Notify administrators
+    notifyAdmin: func (error: Error, severity: {
+        #LOW;
+        #MEDIUM;
+        #HIGH;
+        #CRITICAL;
+    }) : async ();
+
+    // Generate error report
+    generateReport: func (error: Error) : Text;
+};
+```
+
+#### 7.3 Recovery Points
+```motoko
+// System recovery points
+type RecoveryPoint = {
+    timestamp: Time.Time;
+    version: Nat;
+    state: {
+        concepts: [(ConceptId, Concept)];
+        relationships: [(RelationshipId, Relationship)];
+        indices: RelationshipIndex;
+    };
+    metadata: {
+        reason: Text;
+        actor: Principal;
+        checksum: Blob;
+    };
+};
+
+// Recovery point management
+type RecoveryPointManagement = {
+    // Create recovery point
+    createRecoveryPoint: func (reason: Text) : async Result<Nat, Error>;
+    
+    // List recovery points
+    listRecoveryPoints: query func () : [(Nat, {
+        timestamp: Time.Time;
+        reason: Text;
+        size: Nat;
+    })];
+    
+    // Restore from recovery point
+    restoreFromPoint: func (pointId: Nat) : async Result<(), Error>;
+    
+    // Verify recovery point
+    verifyRecoveryPoint: query func (pointId: Nat) : async Result<Bool, Error>;
+    
+    // Cleanup old recovery points
+    cleanupRecoveryPoints: func (
+        maxAge: ?Duration,
+        maxCount: ?Nat
+    ) : async Result<Nat, Error>;
 };
