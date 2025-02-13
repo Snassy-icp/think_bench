@@ -412,29 +412,39 @@ function App() {
                 <h3>Relationships</h3>
                 {loading && <div className="loading">Loading relationships...</div>}
                 <ul>
-                  {relationships.map((rel) => (
-                    <li key={rel.relationship.id} className="relationship">
-                      <div className="relationship-type">
-                        {getRelationshipTypeName(rel.relationship.relationshipTypeId)}
-                      </div>
-                      <div className="relationship-target">
-                        {getConceptName(concepts, rel.relationship.toConceptId)}
-                      </div>
-                      <div className="relationship-probability">
-                        {formatProbability(rel.relationship.probability)}
-                      </div>
-                      {rel.source.tag === 'Transitive' && (
-                        <div className="inference-info">
-                          (Inferred through transitivity)
+                  {relationships.map((rel) => {
+                    const isOutgoing = rel.relationship.fromConceptId.toString() === selectedConcept.id;
+                    // Skip self-referential relationships
+                    if (rel.relationship.fromConceptId.toString() === rel.relationship.toConceptId.toString()) {
+                      return null;
+                    }
+                    return (
+                      <li key={rel.relationship.id} className="relationship">
+                        <div className="relationship-type">
+                          {getRelationshipTypeName(rel.relationship.relationshipTypeId)}
                         </div>
-                      )}
-                      {rel.source.tag === 'Symmetric' && (
-                        <div className="inference-info">
-                          (Inferred through symmetry)
+                        <div className="relationship-target">
+                          {isOutgoing ? 
+                            getConceptName(concepts, rel.relationship.toConceptId) :
+                            `${getConceptName(concepts, rel.relationship.fromConceptId)} ${getRelationshipTypeName(rel.relationship.relationshipTypeId)} ${selectedConcept.name}`
+                          }
                         </div>
-                      )}
-                    </li>
-                  ))}
+                        <div className="relationship-probability">
+                          {formatProbability(rel.relationship.probability)}
+                        </div>
+                        {rel.source.tag === 'Transitive' && (
+                          <div className="inference-info">
+                            (Inferred through transitivity)
+                          </div>
+                        )}
+                        {rel.source.tag === 'Symmetric' && (
+                          <div className="inference-info">
+                            (Inferred through symmetry)
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
             </div>
