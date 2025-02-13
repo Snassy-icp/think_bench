@@ -19,6 +19,204 @@ This concept base system will be implemented on the Internet Computer (ICP) bloc
 - Scalable storage and computation
 - Potential for integration with other ICP services and canisters
 
+### Architecture Rules
+
+#### 1. File Structure
+The backend implementation follows a strict architecture under `src/think_bench_backend/` with three core files (but can be expanded as warranted with new module files):
+```
+src/think_bench_backend/
+├── Types.mo    # All type definitions
+├── main.mo     # Actor implementation and state
+└── lib.mo      # Core implementation logic
+```
+
+#### 2. Strict Separation of Concerns
+
+1. **Types.mo - Type Definitions**
+   - ALL type declarations MUST be defined in this file
+   - No implementation logic allowed
+   - No state declarations allowed
+   - Serves as the single source of truth for type definitions
+
+2. **main.mo - Actor and State Management**
+   - Contains the ONLY actor declaration in the backend
+   - Exclusive location for state definitions
+   - Acts as a facade, delegating implementation to modules
+   - Handles state persistence through upgrade hooks
+   - Example structure:
+   ```motoko
+   actor ConceptBase {
+       // State declarations
+       private var concepts = Map.new<ConceptId, Concept>();
+       private var relationships = Map.new<RelationshipId, Relationship>();
+       
+       // Stable state for upgrades
+       private stable var stableState: StableState = initialState();
+       
+       // System methods for upgrade handling
+       system func preupgrade() {
+           stableState := serializeState(concepts, relationships);
+       };
+       
+       system func postupgrade() {
+           (concepts, relationships) := deserializeState(stableState);
+       };
+       
+       // API methods delegating to lib.mo
+       public shared(msg) func createConcept(...) : async Result<ConceptId, Error> {
+           ConceptLib.createConcept(concepts, relationships, ...);
+       };
+   }
+   ```
+
+3. **lib.mo - Core Implementation**
+   - Contains ONLY static methods
+   - Receives state as parameters from main.mo
+   - Implements all core business logic
+   - No state declarations allowed
+   - Example structure:
+   ```motoko
+   module {
+       public func createConcept(
+           concepts: Map<ConceptId, Concept>,
+           relationships: Map<RelationshipId, Relationship>,
+           ...
+       ) : Result<ConceptId, Error> {
+           // Implementation
+       };
+   }
+   ```
+
+#### 3. State Management Rules
+
+1. **State Declaration**
+   - All mutable state MUST be declared in main.mo
+   - Each non-stable state variable that needs to persist must have a corresponding stable variable
+   - Example pattern:
+   ```motoko
+   // In main.mo
+   
+   // Stable state for persistence across upgrades
+   stable var stable_concepts : [(ConceptId, Concept)] = [];
+   stable var stable_relationships : [(RelationshipId, Relationship)] = [];
+   stable var stable_relationshipTypes : [(RelationshipTypeId, RelationshipTypeDef)] = [];
+   
+   // Runtime state (efficient but non-stable)
+   private var concepts = Map.fromIter<ConceptId, Concept>(
+       stable_concepts.vals(), 
+       1000, 
+       Nat.equal, 
+       Hash.hash
+   );
+   private var relationships = Map.fromIter<RelationshipId, Relationship>(
+       stable_relationships.vals(),
+       10000,
+       Nat.equal,
+       Hash.hash
+   );
+   private var relationshipTypes = Map.fromIter<RelationshipTypeId, RelationshipTypeDef>(
+       stable_relationshipTypes.vals(),
+       100,
+       Nat.equal,
+       Hash.hash
+   );
+   ```
+
+2. **State Persistence**
+   - Use preupgrade() to serialize non-stable state to stable variables
+   - Use postupgrade() to deserialize back to efficient runtime state
+   - Clear stable variables after successful upgrade
+   - Example:
+   ```motoko
+   // In main.mo
+   
+   system func preupgrade() {
+       // Convert runtime state to stable form
+       stable_concepts := Iter.toArray(concepts.entries());
+       stable_relationships := Iter.toArray(relationships.entries());
+       stable_relationshipTypes := Iter.toArray(relationshipTypes.entries());
+   };
+   
+   system func postupgrade() {
+       // Reconstruct runtime state from stable state
+       concepts := Map.fromIter<ConceptId, Concept>(
+           stable_concepts.vals(),
+           stable_concepts.size(),
+           Nat.equal,
+           Hash.hash
+       );
+       relationships := Map.fromIter<RelationshipId, Relationship>(
+           stable_relationships.vals(),
+           stable_relationships.size(),
+           Nat.equal,
+           Hash.hash
+       );
+       relationshipTypes := Map.fromIter<RelationshipTypeId, RelationshipTypeDef>(
+           stable_relationshipTypes.vals(),
+           stable_relationshipTypes.size(),
+           Nat.equal,
+           Hash.hash
+       );
+       
+       // Clear stable state after successful reconstruction
+       stable_concepts := [];
+       stable_relationships := [];
+       stable_relationshipTypes := [];
+   };
+   ```
+
+3. **State Validation**
+   - Validate state integrity during upgrade process
+   - Ensure all references remain valid after reconstruction
+   - Handle any version migrations if needed
+   - Example:
+   ```motoko
+   system func postupgrade() {
+       // First reconstruct state
+       reconstructState();
+       
+       // Then validate integrity
+       assert(validateStateIntegrity());
+       
+       // Only clear stable state if validation passes
+       clearStableState();
+   };
+   ```
+
+These rules ensure:
+- Efficient runtime state using appropriate data structures
+- Safe persistence across canister upgrades
+- Memory efficiency by clearing stable state after successful upgrade
+- Data integrity through validation
+
+#### 4. Module Extension Rules
+
+1. **Additional Modules**
+   - New modules may be added for specific functionality
+   - Must follow the same rules as lib.mo
+   - Must contain only static methods
+   - Must receive state as parameters
+   - Example:
+   ```motoko
+   // InferenceModule.mo
+   module {
+       public func computeInference(
+           relationships: Map<RelationshipId, Relationship>,
+           ...
+       ) : Result<[Relationship], Error> {
+           // Implementation
+       };
+   }
+   ```
+
+These architectural rules ensure:
+- Clear separation of concerns
+- Type safety through centralized type definitions
+- State management consistency
+- Upgrade safety through proper serialization
+- Maintainable and testable code structure
+- Scalable module organization
+
 ## Overview
 This document specifies the structure and operations of a concept base system designed for logical reasoning and algebraic operations over concepts and their relationships.
 
