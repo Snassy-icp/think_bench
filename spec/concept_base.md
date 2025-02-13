@@ -91,20 +91,85 @@ The system maintains both explicit and derived relationships:
 - Explicit relationships are directly asserted
 - Derived relationships are computed through logical inference
 - Each derived relationship maintains references to its premises
-- Probability propagation follows mathematical rules:
-  - AND operations: multiply probabilities (a/b * c/d = ac/bd)
-  - OR operations: P(A∪B) = P(A) + P(B) - P(A∩B)
+
+#### 3.1 Inference Rules
+1. Transitive Inference (AND-chain):
+   ```
+   A IS-A B (p1)
+   B IS-A C (p2)
+   ∴ A IS-A C (p1 * p2)
+   ```
+
+2. Multiple Paths (OR):
+   ```
+   A IS-A C via path1 (p1)
+   A IS-A C via path2 (p2)
+   ∴ A IS-A C (p1 + p2 - p1*p2)  // Union probability
+   ```
+
+3. Property Inheritance:
+   ```
+   A IS-A B (p1)
+   B HAS-PROPERTY X (p2)
+   ∴ A HAS-PROPERTY X (min(p1, p2))  // Conservative estimate
+   ```
+
+4. Inverse Relationships:
+   ```
+   A HAS-A B (p1)
+   ∴ B PART-OF A (p1)  // Probability preserved
+   ```
+
+5. Contradictory Evidence:
+   ```
+   A IS-A B (p1)
+   A IS-NOT-A B (p2)
+   ∴ Conflict detected if: p1 + p2 > 1
+   Resolution: Use max(p1, p2) if sources equally reliable
+   ```
+
+#### 3.2 Inference Strategies
+1. Conservative Inference:
+   - Uses min() for property inheritance
+   - Ensures derived probabilities never exceed source probabilities
+   - Suitable for safety-critical reasoning
+
+2. Optimistic Inference:
+   - Uses max() for alternative evidence
+   - Suitable for hypothesis generation
+   - May require additional validation
+
+3. Balanced Inference:
+   - Uses weighted averages based on source reliability
+   - Considers temporal aspects
+   - Default strategy for most cases
+
+#### 3.3 Inference Chain Validation
+- Each step in inference chain must maintain probability invariants
+- Circular reasoning detection
+- Contradiction detection
 - Example:
   ```
-  Explicit: Black Beauty IS-A Horse (probability: 1/1)
-  Explicit: Horse IS-A Mammal (probability: 1/1)
-  Derived: Black Beauty IS-A Mammal (probability: 1/1, premises: above two relationships)
-
-  Example with uncertainty:
-  Explicit: X IS-A Bird (probability: 95/100)
-  Explicit: Bird CAN Fly (probability: 90/100)
-  Derived: X CAN Fly (probability: 171/200, premises: above two relationships)
+  Given:
+  Black Beauty IS-A Horse (p: 1/1)
+  Horse IS-A Mammal (p: 1/1)
+  Mammal IS-A Animal (p: 1/1)
+  
+  Inferred:
+  Step 1: Black Beauty IS-A Mammal (p: 1/1)
+  Step 2: Black Beauty IS-A Animal (p: 1/1)
+  
+  Validation:
+  - No probability degradation (all 1/1)
+  - No circular references
+  - Chain: Black Beauty -> Horse -> Mammal -> Animal
   ```
+
+#### 3.4 Performance Optimization
+- Cache frequently used inference chains
+- Precompute common property inheritances
+- Lazy evaluation of long inference chains
+- Prioritize short inference paths over long ones
 
 ### 4. Probability System
 
@@ -188,6 +253,16 @@ func createProbability(n: Nat, d: Nat) : ?Probability {
           )
       }
   }
+  ```
+- Min/Max Operations: For combining evidence from multiple sources
+  ```motoko
+  func min(p1: Probability, p2: Probability) : Probability {
+      if (isLessThan(p1, p2)) { p1 } else { p2 }
+  };
+
+  func max(p1: Probability, p2: Probability) : Probability {
+      if (isLessThan(p1, p2)) { p2 } else { p1 }
+  };
   ```
 
 #### 4.3 Dynamic Interpretation
