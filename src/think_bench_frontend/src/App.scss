@@ -1,0 +1,250 @@
+// Variables
+$primary-color: #2c3e50;
+$secondary-color: #3498db;
+$background-color: #f5f6fa;
+$text-color: #2c3e50;
+$border-color: #dcdde1;
+$success-color: #27ae60;
+$error-color: #e74c3c;
+$shadow-color: rgba(0, 0, 0, 0.1);
+
+// Mixins
+@mixin card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px $shadow-color;
+  padding: 20px;
+}
+
+@mixin button {
+  background-color: $secondary-color;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+  &:hover {
+    background-color: darken($secondary-color, 10%);
+  }
+
+  &:disabled {
+    background-color: lighten($secondary-color, 20%);
+    cursor: not-allowed;
+  }
+}
+
+// Base styles
+.app {
+  min-height: 100vh;
+  background-color: $background-color;
+  color: $text-color;
+}
+
+.header {
+  background-color: $primary-color;
+  color: white;
+  padding: 20px;
+  text-align: center;
+
+  h1 {
+    margin: 0;
+    font-size: 2em;
+  }
+
+  p {
+    margin: 10px 0 0;
+    opacity: 0.8;
+  }
+}
+
+.main {
+  display: flex;
+  padding: 20px;
+  gap: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+// Sidebar styles
+.sidebar {
+  flex: 0 0 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.create-concept {
+  @include card;
+
+  h2 {
+    margin: 0 0 20px;
+    font-size: 1.2em;
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    input, textarea {
+      padding: 8px;
+      border: 1px solid $border-color;
+      border-radius: 4px;
+      font-size: 14px;
+
+      &:focus {
+        outline: none;
+        border-color: $secondary-color;
+      }
+    }
+
+    textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+
+    button {
+      @include button;
+    }
+  }
+}
+
+.concepts-list {
+  @include card;
+  flex-grow: 1;
+
+  h2 {
+    margin: 0 0 20px;
+    font-size: 1.2em;
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  li {
+    padding: 10px;
+    border: 1px solid $border-color;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s;
+
+    &:hover {
+      border-color: $secondary-color;
+      background-color: rgba($secondary-color, 0.05);
+    }
+
+    &.selected {
+      border-color: $secondary-color;
+      background-color: rgba($secondary-color, 0.1);
+    }
+
+    .concept-name {
+      display: block;
+      font-weight: bold;
+    }
+
+    .concept-description {
+      display: block;
+      font-size: 0.9em;
+      color: lighten($text-color, 20%);
+      margin-top: 5px;
+    }
+  }
+}
+
+// Content styles
+.content {
+  flex-grow: 1;
+  @include card;
+}
+
+.concept-details {
+  h2 {
+    margin: 0 0 10px;
+    font-size: 1.5em;
+  }
+
+  p {
+    color: lighten($text-color, 20%);
+    margin-bottom: 20px;
+  }
+}
+
+.relationships {
+  h3 {
+    margin: 20px 0 15px;
+    font-size: 1.2em;
+  }
+
+  ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .relationship {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 10px;
+    border: 1px solid $border-color;
+    border-radius: 4px;
+
+    .relationship-type {
+      font-weight: bold;
+      color: $secondary-color;
+      min-width: 80px;
+    }
+
+    .relationship-target {
+      flex-grow: 1;
+    }
+
+    .relationship-probability {
+      color: lighten($text-color, 20%);
+      font-family: monospace;
+    }
+
+    .inference-info {
+      font-size: 0.9em;
+      color: lighten($text-color, 30%);
+      font-style: italic;
+    }
+  }
+}
+
+.no-selection {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  color: lighten($text-color, 40%);
+  font-style: italic;
+}
+
+// Utility classes
+.loading {
+  text-align: center;
+  color: lighten($text-color, 40%);
+  padding: 20px;
+}
+
+.error {
+  color: $error-color;
+  padding: 10px;
+  border: 1px solid $error-color;
+  border-radius: 4px;
+  margin: 10px 0;
+  font-size: 0.9em;
+} 

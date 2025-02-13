@@ -2426,3 +2426,107 @@ type RecoveryPointManagement = {
         maxCount: ?Nat
     ) : async Result<Nat, Error>;
 };
+```
+
+### Frontend Architecture Rules
+
+#### 1. Core Principles
+1. **Dependency Management**
+   - Be extremely conservative with dependencies
+   - All new dependencies MUST be explicitly approved before addition
+   - Prefer native browser APIs and standard library functions over external packages
+   - NEVER use Tailwind for ANYTHING
+
+2. **File Structure**
+   ```
+   src/think_bench_frontend/
+   ├── src/
+   │   ├── components/     # Reusable UI components
+   │   ├── hooks/         # Custom React hooks
+   │   ├── utils/         # Helper functions and utilities
+   │   ├── types/         # TypeScript type definitions
+   │   ├── styles/        # SCSS files
+   │   ├── App.jsx        # Main application component
+   │   └── main.jsx       # Application entry point
+   ├── public/           # Static assets
+   ├── index.html        # HTML template
+   └── package.json      # Frontend dependencies
+   ```
+
+3. **Styling Approach**
+   - Use SCSS modules for component styling
+   - Follow BEM naming convention for CSS classes
+   - Maintain a consistent design system through SCSS variables and mixins
+   - No utility-first CSS frameworks (e.g., Tailwind)
+   - No inline styles except for dynamic values
+
+4. **Component Architecture**
+   - Each component in its own file
+   - Clear separation of container and presentational components
+   - Components should be focused and reusable
+   - Props should be explicitly typed
+   - Example structure:
+   ```jsx
+   // UserCard.jsx
+   import React from 'react';
+   import './UserCard.scss';
+   
+   export type UserCardProps = {
+     name: string;
+     role: string;
+     onSelect: (id: string) => void;
+   };
+   
+   export function UserCard({ name, role, onSelect }: UserCardProps) {
+     return (
+       <div className="user-card">
+         <h3 className="user-card__name">{name}</h3>
+         <p className="user-card__role">{role}</p>
+       </div>
+     );
+   }
+   ```
+
+5. **State Management**
+   - Use React hooks for local state
+   - Avoid global state unless absolutely necessary
+   - State updates should be immutable
+   - Cache API responses appropriately
+
+6. **Performance Considerations**
+   - Implement proper memoization (useMemo, useCallback)
+   - Lazy load components when beneficial
+   - Optimize re-renders
+   - Monitor and optimize bundle size
+
+7. **Error Handling**
+   - Implement error boundaries
+   - Provide meaningful error messages
+   - Handle loading states gracefully
+   - Validate all props and user inputs
+
+8. **Testing**
+   - Write unit tests for utility functions
+   - Write component tests for complex interactions
+   - Test error states and edge cases
+   - Maintain good test coverage
+
+9. **Code Quality**
+   - Use TypeScript for type safety
+   - Follow ESLint rules
+   - Maintain consistent code formatting
+   - Document complex logic and APIs
+
+10. **Accessibility**
+    - Follow WCAG guidelines
+    - Use semantic HTML
+    - Implement proper keyboard navigation
+    - Provide ARIA labels where needed
+
+These rules ensure:
+- Maintainable and scalable frontend code
+- Consistent styling approach
+- Minimal external dependencies
+- Type-safe development
+- Accessible user interface
+- Optimal performance
