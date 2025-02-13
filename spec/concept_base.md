@@ -517,144 +517,108 @@ type ConceptQuery = {
 // Core relationship type definitions
 type RelationshipTypeId = Nat;
 
-// Relationship type definition
-type RelationshipTypeDef = {
-    id: RelationshipTypeId;
-    name: Text;  // e.g., "IS_A", "HAS_A"
-    version: Nat;  // For tracking changes to behavior
-    status: {
-        #ACTIVE;
-        #DEPRECATED: { replacedBy: ?RelationshipTypeId };
-        #DISABLED;
+// Consolidated relationship properties
+type RelationshipTypeProperties = {
+    // Logical properties (consolidated from core and algebraic)
+    logical: {
+        transitive: Bool;      // If A->B->C then A->C
+        symmetric: Bool;       // If A->B then B->A
+        reflexive: Bool;       // A->A always holds
+        irreflexive: Bool;     // A->A never holds
+        antisymmetric: Bool;   // If A->B and B->A then A=B
+        asymmetric: Bool;      // If A->B then not B->A
+        functional: Bool;      // Each source has unique target
+        inverseFunctional: Bool; // Each target has unique source
     };
-    properties: {
-        // Core logical properties
-        transitive: Bool;  // If A->B->C then A->C
-        symmetric: Bool;   // If A->B then B->A
-        reflexive: Bool;   // A->A always holds
-        antisymmetric: Bool; // If A->B and B->A then A=B
-        functional: Bool;  // Each source can have at most one target
-        inverseFunctional: Bool; // Each target can have at most one source
-        
-        // Inheritance properties
+
+    // Inheritance configuration
+    inheritance: {
         inheritable: Bool;  // Whether relationship inherits through IS-A
-        inheritanceMode: {
+        probabilityMode: {
             #MULTIPLY;  // p1 * p2 (like IS-A chains)
             #MINIMUM;   // min(p1, p2) (conservative)
             #MAXIMUM;   // max(p1, p2) (optimistic)
             #OVERRIDE; // Most specific wins
         };
-        
-        // Relationship interaction properties
-        inverse: ?RelationshipTypeId;  // Inverse relationship if any
-        implies: [RelationshipTypeId]; // Other relationships this one implies
-        disjointWith: [RelationshipTypeId]; // Cannot hold simultaneously
-        subsumedBy: [RelationshipTypeId];   // Stronger relationships that imply this one
-        
-        // Composition properties
-        compositionRules: [{
-            first: RelationshipTypeId;
-            result: RelationshipTypeId;
-            
-            // Optional second relationship for ternary compositions
-            second: ?RelationshipTypeId;
-            
-            // Probability computation
-            probabilityRule: {
-                #MULTIPLY;      // Independent events
-                #MINIMUM;       // Conservative bound
-                #MAXIMUM;       // Optimistic bound
-                #OR;           // p1 + p2 - p1*p2
-                #AND;          // p1 * p2
-                #CONDITIONAL;  // P(A|B) = P(A∧B)/P(B)
-                #BAYES;       // P(B|A) = P(A|B)*P(B)/P(A)
-                #CUSTOM: Text; // Formula reference
-            };
-            
-            // Composition constraints
-            constraints: {
-                requireCommonIntermediate: Bool;  // Must share a middle term
-                preserveDirection: Bool;          // Result follows same direction
-                allowCycles: Bool;               // Can form cycles
-                maxChainLength: ?Nat;            // Limit chain length
-            };
-        }];
-        
-        // Algebraic properties
-        algebraicProperties: {
-            // Basic properties
-            transitive: Bool;      // A->B, B->C ⟹ A->C
-            symmetric: Bool;       // A->B ⟹ B->A
-            reflexive: Bool;       // A->A always holds
-            irreflexive: Bool;     // A->A never holds
-            antisymmetric: Bool;   // A->B, B->A ⟹ A=B
-            asymmetric: Bool;      // A->B ⟹ ¬(B->A)
-            
-            // Functional properties
-            functional: Bool;           // Each source has unique target
-            inverseFunctional: Bool;    // Each target has unique source
-            injective: Bool;            // One-to-one
-            surjective: Bool;           // Onto
-            bijective: Bool;            // Both injective and surjective
-            
-            // Order properties
-            partialOrder: Bool;    // Reflexive, antisymmetric, transitive
-            totalOrder: Bool;      // Partial order + any two elements comparable
-            strictOrder: Bool;     // Irreflexive, transitive
-            equivalence: Bool;     // Reflexive, symmetric, transitive
-            
-            // Lattice properties
-            hasJoin: Bool;         // Least upper bound exists
-            hasMeet: Bool;         // Greatest lower bound exists
-            isLattice: Bool;       // Both join and meet exist
-            
-            // Closure properties
-            closedUnderComposition: Bool;  // Composing preserves type
-            closedUnderInversion: Bool;    // Inverting preserves type
-            closedUnderIntersection: Bool; // Intersecting preserves type
-            closedUnderUnion: Bool;        // Unioning preserves type
+        temporalMode: {
+            #INHERIT_RANGE;     // Inherits temporal range intersection
+            #INHERIT_LATEST;    // Uses most recent temporal context
+            #INHERIT_EARLIEST;  // Uses earliest temporal context
         };
+    };
 
-        // Distribution properties
-        distributionRules: [{
-            distributes: RelationshipTypeId;    // This relationship distributes over
-            through: RelationshipTypeId;        // Through this relationship
-            mode: {
-                #LEFT;   // R(A, B∘C) = R(A,B) ∘ R(A,C)
-                #RIGHT;  // R(A∘B, C) = R(A,C) ∘ R(B,C)
-                #BOTH;   // Both left and right distribution
+    // Relationship interactions
+    interactions: {
+        inverse: ?{
+            relationshipTypeId: RelationshipTypeId;
+            probabilityMapping: {
+                #PRESERVE;     // Same probability
+                #COMPLEMENT;   // 1 - p
+                #RECIPROCAL;   // 1/p
+                #CUSTOM: Text; // Custom formula
             };
+        };
+        implies: [{
+            relationshipTypeId: RelationshipTypeId;
+            probabilityMapping: Text;  // Formula for derived probability
         }];
-
-        // Interaction rules with other types
-        interactionRules: [{
-            otherType: RelationshipTypeId;
-            interaction: {
-                #IMPLIES;              // This ⟹ Other
-                #MUTUALLY_EXCLUSIVE;   // Cannot coexist
-                #INDEPENDENT;          // No interaction
-                #COMPLEMENTARY;        // Sum to 1
-                #STRONGER;             // This subsumes Other
-                #WEAKER;              // Other subsumes This
-            };
-            probabilityEffect: {
-                #AMPLIFY;    // Increases probability
-                #DIMINISH;   // Decreases probability
-                #NEGATE;     // Inverts probability
-                #OVERRIDE;   // Replaces probability
+        conflicts: [{
+            relationshipTypeId: RelationshipTypeId;
+            resolutionStrategy: {
+                #PROBABILITY_BASED: {
+                    threshold: Probability;  // Conflict if difference exceeds threshold
+                };
+                #TEMPORAL_BASED: {
+                    preferRecent: Bool;
+                };
+                #SOURCE_BASED: {
+                    authorityHierarchy: [Text];  // Ordered list of authoritative sources
+                };
             };
         }];
     };
-    
-    // Validation rules
+
+    // Validation (using structured predicates instead of text)
     validation: {
-        sourceConstraints: [Text];  // Predicates that source must satisfy
-        targetConstraints: [Text];  // Predicates that target must satisfy
-        relationshipConstraints: [Text]; // Predicates on the relationship itself
+        sourceConstraints: [Predicate];
+        targetConstraints: [Predicate];
+        relationshipConstraints: [RelationshipPredicate];
     };
-    
-    // Type-specific metadata
-    metadata: [(Text, Text)];
+};
+
+// Structured predicate types for validation
+type Predicate = {
+    #HAS_RELATIONSHIP: {
+        relationshipTypeId: RelationshipTypeId;
+        minCount: ?Nat;
+        maxCount: ?Nat;
+    };
+    #HAS_PROPERTY: {
+        name: Text;
+        value: Value;
+    };
+    #COMPOSITE: {
+        operator: {#AND; #OR; #NOT};
+        predicates: [Predicate];
+    };
+};
+
+type RelationshipPredicate = {
+    #PROBABILITY_RANGE: {
+        min: ?Probability;
+        max: ?Probability;
+    };
+    #TEMPORAL_RANGE: {
+        minAge: ?Duration;
+        maxAge: ?Duration;
+    };
+    #PROVENANCE: {
+        requiredSources: [Text];
+    };
+    #COMPOSITE: {
+        operator: {#AND; #OR; #NOT};
+        predicates: [RelationshipPredicate];
+    };
 };
 
 // Stable storage for relationship types
@@ -670,8 +634,8 @@ let RELATIONSHIP_TYPE_PROPERTY_OF: RelationshipTypeId = 3;
 // Main relationship type
 type Relationship = {
     id: RelationshipId;
-    fromConceptId: ConceptId;     // Source concept
-    toConceptId: ConceptId;       // Target concept
+    fromConceptId: ConceptId;
+    toConceptId: ConceptId;
     relationshipTypeId: RelationshipTypeId;
     probability: Probability;
     provenance: Provenance;
@@ -679,8 +643,25 @@ type Relationship = {
     temporal: ?{
         validFrom: Time.Time;
         validTo: ?Time.Time;
+        inferredFrom: ?[{
+            relationshipId: RelationshipId;
+            temporalRule: Text;
+        }];
     };
-    conflicts: [RelationshipId];
+    conflicts: [{
+        relationshipId: RelationshipId;
+        resolutionStrategy: {
+            #PROBABILITY_BASED;
+            #TEMPORAL_BASED;
+            #SOURCE_BASED;
+            #MANUAL: Text;
+        };
+        status: {
+            #UNRESOLVED;
+            #RESOLVED_IN_FAVOR;
+            #RESOLVED_AGAINST;
+        };
+    }];
     metadata: [(Text, Text)];
 };
 
@@ -703,8 +684,8 @@ actor ConceptBase {
     // Concept Management
     public shared(msg) func createConcept(
         name: Text,
-        conceptType: ConceptType,
-        description: ?Text
+        description: ?Text,
+        metadata: ?[(Text, Text)]
     ) : async Result<ConceptId, Text>;
 
     public shared(msg) func updateConcept(
@@ -724,9 +705,9 @@ actor ConceptBase {
 
     // Relationship Management
     public shared(msg) func assertRelationship(
-        sourceId: ConceptId,
-        targetId: ConceptId,
-        relationType: RelationshipType,
+        fromConceptId: ConceptId,
+        toConceptId: ConceptId,
+        relationshipTypeId: RelationshipTypeId,
         probability: Probability,
         metadata: ?[(Text, Text)]
     ) : async Result<RelationshipId, Text>;
@@ -745,10 +726,26 @@ actor ConceptBase {
         pageSize: Nat
     ) : async QueryResult<Relationship>;
 
-    // Inference and Reasoning
+    // Traversal API
+    public query func traverseRelationships(
+        query: RelationshipTraversalQuery
+    ) : async [Relationship];
+
+    public query func getRelatedConcepts(
+        conceptId: ConceptId,
+        direction: TraversalDirection,
+        relationshipTypes: [RelationshipTypeId]
+    ) : async [ConceptId];
+
+    // Helper queries
+    public query func getInstances(conceptId: ConceptId) : async [ConceptId];
+    public query func getCategories(conceptId: ConceptId) : async [ConceptId];
+    public query func getProperties(conceptId: ConceptId) : async [Relationship];
+    
+    // Inference API
     public query func inferRelationships(
-        sourceId: ConceptId,
-        relationType: ?RelationshipType,
+        fromConceptId: ConceptId,
+        relationshipTypeId: ?RelationshipTypeId,
         maxDepth: ?Nat
     ) : async QueryResult<Relationship>;
 
@@ -760,45 +757,10 @@ actor ConceptBase {
         conflicts: [RelationshipId];
     }, Text>;
 
-    // Probability Operations
-    public query func combineEvidence(
-        relationships: [RelationshipId],
-        strategy: {
-            #CONSERVATIVE;
-            #OPTIMISTIC;
-            #BALANCED;
-        }
-    ) : async Result<Probability, Text>;
-
-    // System Operations
-    public shared(msg) func addConflict(
-        relationship1: RelationshipId,
-        relationship2: RelationshipId,
-        explanation: Text
-    ) : async Result<(), Text>;
-
-    public query func getInheritanceChain(
-        relationshipId: RelationshipId
-    ) : async Result<[Relationship], Text>;
-
-    // Batch Operations
-    public shared(msg) func batchAssertRelationships(
-        relationships: [{
-            sourceId: ConceptId;
-            targetId: ConceptId;
-            relationType: RelationshipType;
-            probability: Probability;
-        }]
-    ) : async Result<[RelationshipId], Text>;
-
     // Relationship Type Management
     public shared(msg) func createRelationshipType(
         name: Text,
-        properties: {
-            transitive: Bool;
-            symmetric: Bool;
-            inverse: ?RelationshipTypeId;
-        },
+        properties: RelationshipTypeProperties,
         metadata: [(Text, Text)]
     ) : async Result<RelationshipTypeId, Text>;
 
