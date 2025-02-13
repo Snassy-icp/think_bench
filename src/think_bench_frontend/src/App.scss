@@ -247,4 +247,61 @@ $shadow-color: rgba(0, 0, 0, 0.1);
   border-radius: 4px;
   margin: 10px 0;
   font-size: 0.9em;
+}
+
+.create-relationship {
+  @include card;
+  margin-bottom: 20px;
+
+  h3 {
+    margin: 0 0 15px;
+    font-size: 1.2em;
+  }
+
+  form {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+
+    select {
+      padding: 8px;
+      border: 1px solid $border-color;
+      border-radius: 4px;
+      font-size: 14px;
+
+      &:focus {
+        outline: none;
+        border-color: $secondary-color;
+      }
+    }
+
+    .probability-input {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+
+      input {
+        width: 80px;
+        padding: 8px;
+        border: 1px solid $border-color;
+        border-radius: 4px;
+        font-size: 14px;
+
+        &:focus {
+          outline: none;
+          border-color: $secondary-color;
+        }
+      }
+
+      span {
+        font-size: 18px;
+        font-weight: bold;
+        color: $text-color;
+      }
+    }
+
+    button {
+      @include button;
+    }
+  }
 } 

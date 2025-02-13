@@ -2537,4 +2537,18 @@ These rules ensure:
    - Motoko `null` values are represented as empty arrays `[]` in JavaScript
    - Motoko optional values are wrapped in arrays `[value]` in JavaScript
    - Example: `?Text` in Motoko becomes `[]` (none) or `["my text"]` (some) in JavaScript
-4. Many of the problems in JavaScript / Motoko interop come from BigInt (Nat in Motoko) management, so please always be extra careful with this!
+4. BigInt (Nat) Handling in JavaScript-Motoko Interop:
+   - ALL numeric IDs from Motoko are BigInt (even if they look like regular numbers)
+   - When sending IDs to Motoko: ALWAYS convert using `BigInt(value)`
+   - When receiving IDs from Motoko: ALWAYS convert using `Number(value)` for display/comparison
+   - When storing IDs in state: Store as strings to avoid precision loss
+   - HTML form elements (like select) can only handle strings/numbers, not BigInt
+   Example:
+   ```javascript
+   // Receiving from Motoko
+   const displayId = Number(concept.id);  // For display/comparison
+   const storedId = concept.id.toString();  // For state storage
+   
+   // Sending to Motoko
+   const motokoBigInt = BigInt(storedId);  // When calling Motoko functions
+   ```
