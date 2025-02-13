@@ -118,7 +118,8 @@ actor ConceptBase {
             name,
             description,
             metadata,
-            nextConceptId
+            nextConceptId,
+            msg.caller
         );
 
         switch (conceptResult) {
@@ -128,6 +129,34 @@ actor ConceptBase {
                 #ok(concept.id)
             };
             case (#err(error)) #err(error);
+        }
+    };
+
+    public shared(msg) func updateConcept(
+        id: Types.ConceptId,
+        name: ?Text,
+        description: ?Text,
+        metadata: ?[(Text, Text)]
+    ) : async Types.Result<(), Types.Error> {
+        switch (concepts.get(id)) {
+            case (?concept) {
+                // Check if caller is the creator
+                switch (Lib.validateConceptModification(concept, msg.caller)) {
+                    case (#err(e)) return #err(e);
+                    case (#ok()) {};
+                };
+
+                let updatedConcept = {
+                    concept with
+                    name = Option.get(name, concept.name);
+                    description = concept.description; // ?Option.get(description, concept.description);
+                    metadata = Option.get(metadata, concept.metadata);
+                    modified = Time.now() : Time.Time;
+                };
+                concepts.put(id, updatedConcept);
+                #ok()
+            };
+            case null #err(#NotFound("Concept not found"));
         }
     };
 
@@ -169,7 +198,8 @@ actor ConceptBase {
                     relationshipTypeId,
                     probability,
                     metadata,
-                    nextRelationshipId
+                    nextRelationshipId,
+                    msg.caller
                 );
 
                 switch (relationshipResult) {
@@ -211,6 +241,31 @@ actor ConceptBase {
                     };
                 }
             };
+        }
+    };
+
+    public shared(msg) func updateRelationship(
+        id: Types.RelationshipId,
+        probability: ?Types.Probability,
+        metadata: ?[(Text, Text)]
+    ) : async Types.Result<(), Types.Error> {
+        switch (relationships.get(id)) {
+            case (?relationship) {
+                // Check if caller is the creator
+                switch (Lib.validateRelationshipModification(relationship, msg.caller)) {
+                    case (#err(e)) return #err(e);
+                    case (#ok()) {};
+                };
+
+                let updatedRelationship = {
+                    relationship with
+                    probability = Option.get(probability, relationship.probability);
+                    metadata = Option.get(metadata, relationship.metadata);
+                };
+                relationships.put(id, updatedRelationship);
+                #ok()
+            };
+            case null #err(#NotFound("Relationship not found"));
         }
     };
 

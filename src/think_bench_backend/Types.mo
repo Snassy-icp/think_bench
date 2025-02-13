@@ -54,13 +54,20 @@ module {
         denominator: Nat;
     };
 
+    // Creator type for provenance tracking
+    public type Creator = {
+        principalId: Principal;
+        timestamp: Int;  // Time.now() value
+    };
+
     // Core concept type
     public type Concept = {
         id: ConceptId;
         name: Text;
         description: ?Text;
-        created: Int;  // Timestamp
-        modified: Int; // Timestamp
+        creator: Creator;  // Added creator field
+        created: Int;
+        modified: Int;
         outgoingRelationships: [RelationshipId];
         incomingRelationships: [RelationshipId];
         metadata: [(Text, Text)];
@@ -121,6 +128,7 @@ module {
         toConceptId: ConceptId;
         relationshipTypeId: RelationshipTypeId;
         probability: Probability;
+        creator: Creator;  // Added creator field
         metadata: [(Text, Text)];
     };
 
@@ -130,6 +138,7 @@ module {
         metadata: [(Text, Text)];
         hasInstances: ?Bool;
         isInstance: ?Bool;
+        creator: ?Principal;  // Added creator filter
     };
 
     public type RelationshipQuery = {
@@ -139,6 +148,7 @@ module {
         minProbability: ?Probability;
         maxProbability: ?Probability;
         metadata: [(Text, Text)];
+        creator: ?Principal;  // Added creator filter
     };
 
     // Result types
@@ -172,5 +182,10 @@ module {
         #AlreadyExists: Text;
         #SystemError: Text;
         #InvalidOperation: Text;
+        #PermissionDenied: {  // Added permission denied error
+            operation: Text;
+            resource: Text;
+            reason: Text;
+        };
     };
 }

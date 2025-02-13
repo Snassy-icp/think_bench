@@ -6,6 +6,7 @@ import Iter "mo:base/Iter";
 import Nat "mo:base/Nat";
 import Option "mo:base/Option";
 import Time "mo:base/Time";
+import Principal "mo:base/Principal";
 
 module {
     // Concept Management
@@ -14,14 +15,19 @@ module {
         name: Text,
         description: ?Text,
         metadata: ?[(Text, Text)],
-        nextId: Nat
+        nextId: Nat,
+        caller: Principal
     ) : Types.Result<Types.Concept, Types.Error> {
         let concept : Types.Concept = {
             id = nextId;
             name = name;
-            description = description;
+            description = description : ?Text;
+            creator = {
+                principalId = caller;
+                timestamp = Time.now();
+            };
             created = Time.now();
-            modified = Time.now();
+            modified = Time.now() : Int;
             outgoingRelationships = [];
             incomingRelationships = [];
             metadata = Option.get(metadata, []);
@@ -36,6 +42,20 @@ module {
         true
     };
 
+    public func validateConceptModification(
+        concept: Types.Concept,
+        caller: Principal
+    ) : Types.Result<(), Types.Error> {
+        if (concept.creator.principalId != caller) {
+            return #err(#PermissionDenied({
+                operation = "modify";
+                resource = "concept";
+                reason = "Only the creator can modify this concept";
+            }));
+        };
+        #ok()
+    };
+
     // Relationship Management
     public func createRelationship(
         concepts: [(Types.ConceptId, Types.Concept)],
@@ -44,7 +64,8 @@ module {
         relationshipTypeId: Types.RelationshipTypeId,
         probability: Types.Probability,
         metadata: ?[(Text, Text)],
-        nextId: Nat
+        nextId: Nat,
+        caller: Principal
     ) : Types.Result<Types.Relationship, Types.Error> {
         // Validate concepts exist
         switch (Array.find<(Types.ConceptId, Types.Concept)>(concepts, func(entry) = entry.0 == fromConceptId)) {
@@ -76,9 +97,27 @@ module {
             toConceptId = toConceptId;
             relationshipTypeId = relationshipTypeId;
             probability = probability;
+            creator = {
+                principalId = caller;
+                timestamp = Time.now();
+            };
             metadata = Option.get(metadata, []);
         };
         #ok(relationship)
+    };
+
+    public func validateRelationshipModification(
+        relationship: Types.Relationship,
+        caller: Principal
+    ) : Types.Result<(), Types.Error> {
+        if (relationship.creator.principalId != caller) {
+            return #err(#PermissionDenied({
+                operation = "modify";
+                resource = "relationship";
+                reason = "Only the creator can modify this relationship";
+            }));
+        };
+        #ok()
     };
 
     public func validateRelationship(relationship: Types.Relationship) : Bool {
@@ -237,6 +276,16 @@ module {
         for ((_, concept) in concepts.vals()) {
             var matches = true;
             
+            // Creator matching
+            switch (criteria.creator) {
+                case (?creator) {
+                    if (concept.creator.principalId != creator) {
+                        matches := false;
+                    };
+                };
+                case null {};
+            };
+            
             // Name pattern matching
             switch (criteria.namePattern) {
                 case (?pattern) {
@@ -271,6 +320,16 @@ module {
         
         for ((_, relationship) in relationships.vals()) {
             var matches = true;
+            
+            // Creator matching
+            switch (criteria.creator) {
+                case (?creator) {
+                    if (relationship.creator.principalId != creator) {
+                        matches := false;
+                    };
+                };
+                case null {};
+            };
             
             // Source concept matching
             switch (criteria.fromConceptId) {
@@ -414,6 +473,7 @@ module {
                                 toConceptId = rel.fromConceptId;
                                 relationshipTypeId = rel.relationshipTypeId;
                                 probability = rel.probability;
+                                creator = rel.creator;  // Copy creator from original relationship
                                 metadata = rel.metadata;
                             };
                             
@@ -471,6 +531,7 @@ module {
                             toConceptId = rel.toConceptId;
                             relationshipTypeId = rel.relationshipTypeId;
                             probability = newProb;
+                            creator = rel.creator;  // Copy creator from original relationship
                             metadata = rel.metadata;
                         };
 
