@@ -287,6 +287,12 @@ $shadow-color: rgba(0, 0, 0, 0.1);
     .relationship-probability {
       color: color.adjust($text-color, $lightness: 20%);
       font-family: monospace;
+
+      .relationship-confidence {
+        margin-left: 10px;
+        padding-left: 10px;
+        border-left: 1px solid $border-color;
+      }
     }
 
     .inference-info {
@@ -348,10 +354,15 @@ $shadow-color: rgba(0, 0, 0, 0.1);
       }
     }
 
-    .probability-input {
+    .probability-input, .confidence-input {
       display: flex;
       align-items: center;
       gap: 10px;
+
+      label {
+        min-width: 80px;
+        color: $text-color;
+      }
 
       input {
         width: 80px;

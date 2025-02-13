@@ -31,6 +31,7 @@ module {
         relationshipType: ?RelationshipTypeId;    // Optional: only infer this type
         maxDepth: ?Nat;                          // Optional: maximum inference depth
         minProbability: ?Probability;            // Optional: minimum probability threshold
+        minConfidence: ?Confidence;              // Optional: minimum confidence threshold
     };
 
     // Value type for properties and metadata
@@ -57,8 +58,17 @@ module {
     // Unit fraction type for values constrained to 0 <= n <= 1
     public type UnitFraction = Fraction;
 
-    // Probability is semantically a unit fraction
+    // Specific unit fraction types for different semantic uses
     public type Probability = UnitFraction;
+    public type Confidence = UnitFraction;
+    public type Reliability = UnitFraction;
+
+    // User reliability tracking
+    public type UserReliability = {
+        principalId: Principal;
+        score: Reliability;
+        lastUpdated: Int;
+    };
 
     // Creator type for provenance tracking
     public type Creator = {
@@ -134,7 +144,8 @@ module {
         toConceptId: ConceptId;
         relationshipTypeId: RelationshipTypeId;
         probability: Probability;
-        creator: Creator;  // Added creator field
+        confidence: Confidence;
+        creator: Creator;
         metadata: [(Text, Text)];
     };
 
@@ -188,9 +199,13 @@ module {
         #AlreadyExists: Text;
         #SystemError: Text;
         #InvalidOperation: Text;
-        #PermissionDenied: {  // Added permission denied error
+        #PermissionDenied: {
             operation: Text;
             resource: Text;
+            reason: Text;
+        };
+        #InvalidConfidence: {
+            value: Text;
             reason: Text;
         };
     };

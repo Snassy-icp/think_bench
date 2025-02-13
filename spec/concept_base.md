@@ -2637,3 +2637,107 @@ These provenance requirements ensure:
 - Proper access control based on ownership
 - Transparent display of creator information
 - Secure validation of modification permissions
+
+### Relationship Scoring System
+
+#### 1. Core Concepts
+- **Probability**: A unit fraction (0 ≤ p ≤ 1) representing the likelihood of a relationship being true
+  - Example: P(die shows six) = 1/6
+- **Confidence**: A unit fraction (0 ≤ c ≤ 1) representing how certain we are about the stated probability
+  - Example: For a fair die, confidence ≈ 1 (very confident about the 1/6 probability)
+- **User Reliability**: A unit fraction (0 ≤ r ≤ 1) associated with each user's Principal ID
+  - All users start with reliability = 1/2
+  - Used to weight relationship assertions based on user trustworthiness
+
+#### 2. Type Definitions
+```motoko
+// In Types.mo
+public type Reliability = UnitFraction;
+public type Confidence = UnitFraction;
+
+// Enhanced relationship type
+public type Relationship = {
+    // ... existing fields ...
+    probability: Probability;
+    confidence: Confidence;
+    // ... existing fields ...
+};
+
+// User reliability tracking
+public type UserReliability = {
+    principalId: Principal;
+    score: Reliability;
+    lastUpdated: Int;  // Time.now() value
+};
+```
+
+#### 3. Implementation Rules
+1. Every relationship must have both a probability and a confidence score
+2. User reliability scores:
+   - Initialize at 1/2 for new users
+   - Visible to all users
+   - Used to weight relationship assertions
+3. Relationship validation must check both probability and confidence are valid unit fractions
+
+#### 4. Error Handling
+Add new error variants for invalid confidence scores:
+```motoko
+public type Error = {
+    // ... existing error types ...
+    #InvalidConfidence: {
+        value: Text;
+        reason: Text;
+    };
+};
+```
+
+// ... existing code ...
+
+#### 8. Confidence and Inference Rules
+
+1. Confidence Score Requirements:
+   - All relationships MUST have a confidence score (0 ≤ c ≤ 1)
+   - Confidence scores MUST be validated during creation and updates
+   - Only the creator can modify confidence scores
+
+2. Inference Rules for Confidence:
+   - For symmetric relationships: confidence is copied from the original relationship
+   - For transitive relationships: confidence is combined using the minimum rule
+     ```motoko
+     // If A->B (c1) and B->C (c2) then A->C (min(c1,c2))
+     inferredConfidence = {
+         numerator = min(c1.numerator * c2.denominator, c2.numerator * c1.denominator);
+         denominator = c1.denominator * c2.denominator;
+     };
+     ```
+   - Confidence scores MUST be considered in relationship queries and inference thresholds
+
+3. Query Parameters:
+   ```motoko
+   public type RelationshipQuery = {
+       // ... existing fields ...
+       minConfidence: ?Confidence;  // Optional minimum confidence threshold
+   };
+
+   public type InferenceQuery = {
+       // ... existing fields ...
+       minConfidence: ?Confidence;  // Optional minimum confidence threshold
+   };
+   ```
+
+4. Error Handling:
+   ```motoko
+   public type Error = {
+       // ... existing error types ...
+       #InvalidConfidence: {
+           value: Text;    // The invalid confidence value
+           reason: Text;   // Why it was invalid
+       };
+   };
+   ```
+
+These confidence requirements ensure:
+- Proper tracking of certainty in relationship assertions
+- Meaningful confidence propagation through inference
+- Ability to filter relationships by confidence level
+// ... existing code ...

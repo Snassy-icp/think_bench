@@ -63,6 +63,7 @@ module {
         toConceptId: Types.ConceptId,
         relationshipTypeId: Types.RelationshipTypeId,
         probability: Types.Probability,
+        confidence: Types.Confidence,
         metadata: ?[(Text, Text)],
         nextId: Nat,
         caller: Principal
@@ -91,12 +92,21 @@ module {
             }));
         };
 
+        // Validate confidence
+        if (confidence.denominator == 0 or confidence.numerator > confidence.denominator) {
+            return #err(#InvalidConfidence({
+                value = Nat.toText(confidence.numerator) # "/" # Nat.toText(confidence.denominator);
+                reason = "Confidence must be between 0 and 1";
+            }));
+        };
+
         let relationship : Types.Relationship = {
             id = nextId;
             fromConceptId = fromConceptId;
             toConceptId = toConceptId;
             relationshipTypeId = relationshipTypeId;
             probability = probability;
+            confidence = confidence;
             creator = {
                 principalId = caller;
                 timestamp = Time.now();
@@ -396,179 +406,6 @@ module {
         results
     };
 
-    // Inference Functions
-    public func inferRelationships(
-        relationships: [(Types.RelationshipId, Types.Relationship)],
-        relationshipTypes: [(Types.RelationshipTypeId, Types.RelationshipTypeDef)],
-        inferenceParams: Types.InferenceQuery
-    ) : [Types.InferredRelationship] {
-        var results : [Types.InferredRelationship] = [];
-        var visited : [(Types.ConceptId, Types.ConceptId)] = []; // (from, to) pairs
-        
-        // Helper to check if a path has been visited
-        func isVisited(from: Types.ConceptId, to: Types.ConceptId) : Bool {
-            Array.find<(Types.ConceptId, Types.ConceptId)>(
-                visited,
-                func(pair) = pair.0 == from and pair.1 == to
-            ) != null
-        };
-
-        // Helper to multiply probabilities
-        func multiplyProbabilities(p1: Types.Probability, p2: Types.Probability) : Types.Probability {
-            {
-                numerator = p1.numerator * p2.numerator;
-                denominator = p1.denominator * p2.denominator;
-            }
-        };
-
-        // Helper to check if probability meets threshold
-        func meetsThreshold(p: Types.Probability, threshold: ?Types.Probability) : Bool {
-            switch (threshold) {
-                case null true;
-                case (?min) probabilityGreaterThanOrEqual(p, min);
-            };
-        };
-
-        // Helper to get relationship type properties
-        func getTypeProperties(typeId: Types.RelationshipTypeId) : ?Types.RelationshipTypeProperties {
-            switch (Array.find<(Types.RelationshipTypeId, Types.RelationshipTypeDef)>(
-                relationshipTypes,
-                func((id, _)) = id == typeId
-            )) {
-                case (?entry) ?entry.1.properties;
-                case null null;
-            };
-        };
-
-        // Get all direct relationships from the starting concept
-        let directRelationships = Array.filter<(Types.RelationshipId, Types.Relationship)>(
-            relationships,
-            func((_, rel)) = 
-                rel.fromConceptId == inferenceParams.startingConcept and
-                (
-                    switch (inferenceParams.relationshipType) {
-                        case (?typeId) rel.relationshipTypeId == typeId;
-                        case null rel.relationshipTypeId == Types.RELATIONSHIP_TYPE_IS_A;
-                    }
-                )
-        );
-
-        // Add direct relationships to results
-        for ((id, rel) in directRelationships.vals()) {
-            if (meetsThreshold(rel.probability, inferenceParams.minProbability)) {
-                results := Array.append(results, [{
-                    relationship = rel;
-                    source = #Direct(id);
-                }]);
-                visited := Array.append(visited, [(rel.fromConceptId, rel.toConceptId)]);
-
-                // Handle symmetric relationships
-                switch (getTypeProperties(rel.relationshipTypeId)) {
-                    case (?props) {
-                        if (props.logical.symmetric) {
-                            // Create symmetric relationship
-                            let symRel : Types.Relationship = {
-                                id = rel.id;  // Use same ID for symmetric pair
-                                fromConceptId = rel.toConceptId;
-                                toConceptId = rel.fromConceptId;
-                                relationshipTypeId = rel.relationshipTypeId;
-                                probability = rel.probability;
-                                creator = rel.creator;  // Copy creator from original relationship
-                                metadata = rel.metadata;
-                            };
-                            
-                            if (not isVisited(symRel.fromConceptId, symRel.toConceptId)) {
-                                results := Array.append(results, [{
-                                    relationship = symRel;
-                                    source = #Symmetric(id);
-                                }]);
-                                visited := Array.append(visited, [(symRel.fromConceptId, symRel.toConceptId)]);
-                            };
-                        };
-                    };
-                    case null {};
-                };
-            };
-        };
-
-        // Recursively find transitive relationships
-        func findTransitive(
-            currentId: Types.ConceptId,
-            depth: Nat,
-            currentProb: Types.Probability
-        ) {
-            // Check depth limit
-            switch (inferenceParams.maxDepth) {
-                case (?maxDepth) if (depth >= maxDepth) return;
-                case null {};
-            };
-
-            // Get relationships where current concept is the source
-            let nextRelationships = Array.filter<(Types.RelationshipId, Types.Relationship)>(
-                relationships,
-                func((_, rel)) = 
-                    rel.fromConceptId == currentId and
-                    (
-                        switch (inferenceParams.relationshipType) {
-                            case (?typeId) rel.relationshipTypeId == typeId;
-                            case null rel.relationshipTypeId == Types.RELATIONSHIP_TYPE_IS_A;
-                        }
-                    )
-            );
-
-            // Process each relationship
-            for ((id, rel) in nextRelationships.vals()) {
-                let newProb = multiplyProbabilities(currentProb, rel.probability);
-                
-                // Only proceed if probability meets threshold
-                if (meetsThreshold(newProb, inferenceParams.minProbability)) {
-                    // Check if we've already visited this path
-                    if (not isVisited(inferenceParams.startingConcept, rel.toConceptId)) {
-                        // Create inferred relationship
-                        let inferredRel : Types.Relationship = {
-                            id = rel.id;  // We'll use the same ID for now
-                            fromConceptId = inferenceParams.startingConcept;
-                            toConceptId = rel.toConceptId;
-                            relationshipTypeId = rel.relationshipTypeId;
-                            probability = newProb;
-                            creator = rel.creator;  // Copy creator from original relationship
-                            metadata = rel.metadata;
-                        };
-
-                        results := Array.append(results, [{
-                            relationship = inferredRel;
-                            source = #Transitive({
-                                first = id;
-                                second = rel.id;
-                                probability = newProb;
-                            });
-                        }]);
-
-                        visited := Array.append(visited, [(inferenceParams.startingConcept, rel.toConceptId)]);
-
-                        // Continue inference from this point
-                        findTransitive(rel.toConceptId, depth + 1, newProb);
-                    };
-                };
-            };
-        };
-
-        // Start transitive inference from each direct relationship
-        for ((_, rel) in directRelationships.vals()) {
-            // Only do transitive inference for transitive relationship types
-            switch (getTypeProperties(rel.relationshipTypeId)) {
-                case (?props) {
-                    if (props.logical.transitive) {
-                        findTransitive(rel.toConceptId, 1, rel.probability);
-                    };
-                };
-                case null {};
-            };
-        };
-
-        results
-    };
-
     // Helper Functions
     private func textContains(text: Text, pattern: Text) : Bool {
         // Simple substring check
@@ -620,5 +457,223 @@ module {
 
     private func probabilityLessThanOrEqual(p1: Types.Probability, p2: Types.Probability) : Bool {
         p1.numerator * p2.denominator <= p2.numerator * p1.denominator
+    };
+
+    // Helper to create symmetric relationship with same confidence
+    private func createSymmetricRelationship(rel: Types.Relationship) : Types.Relationship {
+        {
+            id = rel.id;  // Use same ID for symmetric pair
+            fromConceptId = rel.toConceptId;
+            toConceptId = rel.fromConceptId;
+            relationshipTypeId = rel.relationshipTypeId;
+            probability = rel.probability;
+            confidence = rel.confidence;
+            creator = rel.creator;
+            metadata = rel.metadata;
+        }
+    };
+
+    // Helper to combine confidences for transitive relationships
+    private func combineConfidences(c1: Types.Confidence, c2: Types.Confidence) : Types.Confidence {
+        // Use minimum rule for confidence combination
+        {
+            numerator = Nat.min(
+                c1.numerator * c2.denominator,
+                c2.numerator * c1.denominator
+            );
+            denominator = c1.denominator * c2.denominator;
+        }
+    };
+
+    // Helper to check if confidence meets threshold
+    private func meetsConfidenceThreshold(c: Types.Confidence, threshold: ?Types.Confidence) : Bool {
+        switch (threshold) {
+            case null true;
+            case (?min) {
+                c.numerator * min.denominator >= min.numerator * c.denominator
+            };
+        }
+    };
+
+    // Inference Functions
+    public func inferRelationships(
+        relationships: [(Types.RelationshipId, Types.Relationship)],
+        relationshipTypes: [(Types.RelationshipTypeId, Types.RelationshipTypeDef)],
+        inferenceParams: Types.InferenceQuery
+    ) : [Types.InferredRelationship] {
+        var results : [Types.InferredRelationship] = [];
+        var visited : [(Types.ConceptId, Types.ConceptId)] = [];
+        
+        // Helper to check if a path has been visited
+        func isVisited(from: Types.ConceptId, to: Types.ConceptId) : Bool {
+            Array.find<(Types.ConceptId, Types.ConceptId)>(
+                visited,
+                func(pair) = pair.0 == from and pair.1 == to
+            ) != null
+        };
+
+        // Helper to multiply probabilities
+        func multiplyProbabilities(p1: Types.Probability, p2: Types.Probability) : Types.Probability {
+            {
+                numerator = p1.numerator * p2.numerator;
+                denominator = p1.denominator * p2.denominator;
+            }
+        };
+
+        // Helper to check if probability meets threshold
+        func meetsThreshold(p: Types.Probability, threshold: ?Types.Probability) : Bool {
+            switch (threshold) {
+                case null true;
+                case (?min) probabilityGreaterThanOrEqual(p, min);
+            };
+        };
+
+        // Helper to get relationship type properties
+        func getTypeProperties(typeId: Types.RelationshipTypeId) : ?Types.RelationshipTypeProperties {
+            switch (Array.find<(Types.RelationshipTypeId, Types.RelationshipTypeDef)>(
+                relationshipTypes,
+                func((id, _)) = id == typeId
+            )) {
+                case (?entry) ?entry.1.properties;
+                case null null;
+            };
+        };
+
+        // Get all direct relationships from the starting concept
+        let directRelationships = Array.filter<(Types.RelationshipId, Types.Relationship)>(
+            relationships,
+            func((_, rel)) = 
+                rel.fromConceptId == inferenceParams.startingConcept and
+                (
+                    switch (inferenceParams.relationshipType) {
+                        case (?typeId) rel.relationshipTypeId == typeId;
+                        case null rel.relationshipTypeId == Types.RELATIONSHIP_TYPE_IS_A;
+                    }
+                )
+        );
+
+        // Add direct relationships to results if they meet both probability and confidence thresholds
+        for ((id, rel) in directRelationships.vals()) {
+            if (meetsThreshold(rel.probability, inferenceParams.minProbability) and
+                meetsConfidenceThreshold(rel.confidence, inferenceParams.minConfidence)) {
+                results := Array.append(results, [{
+                    relationship = rel;
+                    source = #Direct(id);
+                }]);
+                visited := Array.append(visited, [(rel.fromConceptId, rel.toConceptId)]);
+
+                // Handle symmetric relationships with same confidence
+                switch (getTypeProperties(rel.relationshipTypeId)) {
+                    case (?props) {
+                        if (props.logical.symmetric) {
+                            let symRel = createSymmetricRelationship(rel);
+                            if (not isVisited(symRel.fromConceptId, symRel.toConceptId)) {
+                                results := Array.append(results, [{
+                                    relationship = symRel;
+                                    source = #Symmetric(id);
+                                }]);
+                                visited := Array.append(visited, [(symRel.fromConceptId, symRel.toConceptId)]);
+                            };
+                        };
+                    };
+                    case null {};
+                };
+            };
+        };
+
+        // Recursively find transitive relationships
+        func findTransitive(
+            currentId: Types.ConceptId,
+            depth: Nat,
+            currentProb: Types.Probability,
+            currentConf: Types.Confidence,
+            firstRel: Types.RelationshipId
+        ) {
+            // Check depth limit
+            switch (inferenceParams.maxDepth) {
+                case (?maxDepth) if (depth >= maxDepth) return;
+                case null {};
+            };
+
+            // Get relationships where current concept is the source
+            let nextRelationships = Array.filter<(Types.RelationshipId, Types.Relationship)>(
+                relationships,
+                func((_, rel)) = 
+                    rel.fromConceptId == currentId and
+                    (
+                        switch (inferenceParams.relationshipType) {
+                            case (?typeId) rel.relationshipTypeId == typeId;
+                            case null rel.relationshipTypeId == Types.RELATIONSHIP_TYPE_IS_A;
+                        }
+                    )
+            );
+
+            // Process each relationship
+            for ((id, rel) in nextRelationships.vals()) {
+                let newProb = multiplyProbabilities(currentProb, rel.probability);
+                let newConf = combineConfidences(currentConf, rel.confidence);
+                
+                // Only proceed if both probability and confidence meet thresholds
+                if (meetsThreshold(newProb, inferenceParams.minProbability) and
+                    meetsConfidenceThreshold(newConf, inferenceParams.minConfidence)) {
+                    
+                    if (not isVisited(inferenceParams.startingConcept, rel.toConceptId)) {
+                        let inferredRel = createInferredRelationship(
+                            inferenceParams.startingConcept,
+                            rel,
+                            newProb,
+                            newConf
+                        );
+
+                        results := Array.append(results, [{
+                            relationship = inferredRel;
+                            source = #Transitive({
+                                first = firstRel;
+                                second = id;
+                                probability = newProb;
+                            });
+                        }]);
+
+                        visited := Array.append(visited, [(inferenceParams.startingConcept, rel.toConceptId)]);
+
+                        // Continue inference from this point
+                        findTransitive(rel.toConceptId, depth + 1, newProb, newConf, firstRel);
+                    };
+                };
+            };
+        };
+
+        // Start transitive inference from each direct relationship
+        for ((id, rel) in directRelationships.vals()) {
+            switch (getTypeProperties(rel.relationshipTypeId)) {
+                case (?props) {
+                    if (props.logical.transitive) {
+                        findTransitive(rel.toConceptId, 1, rel.probability, rel.confidence, id);
+                    };
+                };
+                case null {};
+            };
+        };
+
+        results
+    };
+
+    // Update helper function to include confidence
+    private func createInferredRelationship(
+        startingConcept: Types.ConceptId,
+        rel: Types.Relationship,
+        newProb: Types.Probability,
+        newConf: Types.Confidence
+    ) : Types.Relationship {
+        {
+            id = rel.id;
+            fromConceptId = startingConcept;
+            toConceptId = rel.toConceptId;
+            relationshipTypeId = rel.relationshipTypeId;
+            probability = newProb;
+            confidence = newConf;
+            creator = rel.creator;
+            metadata = rel.metadata;
+        }
     };
 }

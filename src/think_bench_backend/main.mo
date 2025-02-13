@@ -198,6 +198,7 @@ actor ConceptBase {
                     toConceptId,
                     relationshipTypeId,
                     probability,
+                    { numerator = 1; denominator = 1 },  // Default confidence of 1
                     metadata,
                     nextRelationshipId,
                     msg.caller

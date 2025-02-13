@@ -25,7 +25,8 @@ function App() {
   const [newRelationshipData, setNewRelationshipData] = useState({
     targetConceptId: '',
     relationshipTypeId: '0', // Default to IS-A
-    probability: { numerator: 1, denominator: 1 }
+    probability: { numerator: 1, denominator: 1 },
+    confidence: { numerator: 1, denominator: 1 }  // Add default confidence
   });
 
   // Relationship type constants
@@ -325,8 +326,12 @@ function App() {
         BigInt(newRelationshipData.targetConceptId),
         BigInt(newRelationshipData.relationshipTypeId),
         {
-          numerator: Number(numerator),
-          denominator: Number(denominator)
+          numerator: Number(newRelationshipData.probability.numerator),
+          denominator: Number(newRelationshipData.probability.denominator)
+        },
+        {
+          numerator: Number(newRelationshipData.confidence.numerator),
+          denominator: Number(newRelationshipData.confidence.denominator)
         },
         [] // Optional metadata: none
       );
@@ -336,7 +341,8 @@ function App() {
         setNewRelationshipData({
           targetConceptId: '',
           relationshipTypeId: '0',
-          probability: { numerator: 1, denominator: 1 }
+          probability: { numerator: 1, denominator: 1 },
+          confidence: { numerator: 1, denominator: 1 }
         });
         await loadRelationships(BigInt(selectedConcept.id));
       } else if ('err' in result) {
@@ -468,6 +474,7 @@ function App() {
                       </select>
 
                       <div className="probability-input">
+                        <label>Probability:</label>
                         <input
                           type="number"
                           min="0"
@@ -492,6 +499,39 @@ function App() {
                             ...newRelationshipData,
                             probability: {
                               ...newRelationshipData.probability,
+                              denominator: parseInt(e.target.value, 10)
+                            }
+                          })}
+                          required
+                        />
+                      </div>
+
+                      <div className="confidence-input">
+                        <label>Confidence:</label>
+                        <input
+                          type="number"
+                          min="0"
+                          max="999"
+                          value={newRelationshipData.confidence.numerator}
+                          onChange={(e) => setNewRelationshipData({
+                            ...newRelationshipData,
+                            confidence: {
+                              ...newRelationshipData.confidence,
+                              numerator: parseInt(e.target.value, 10)
+                            }
+                          })}
+                          required
+                        />
+                        <span>/</span>
+                        <input
+                          type="number"
+                          min="1"
+                          max="999"
+                          value={newRelationshipData.confidence.denominator}
+                          onChange={(e) => setNewRelationshipData({
+                            ...newRelationshipData,
+                            confidence: {
+                              ...newRelationshipData.confidence,
                               denominator: parseInt(e.target.value, 10)
                             }
                           })}
@@ -527,7 +567,10 @@ function App() {
                               }
                             </div>
                             <div className="relationship-probability">
-                              {formatProbability(rel.relationship.probability)}
+                              P: {formatProbability(rel.relationship.probability)}
+                              <span className="relationship-confidence">
+                                C: {formatProbability(rel.relationship.confidence)}
+                              </span>
                             </div>
                             <div className="relationship-creator">
                               Created by: {rel.relationship.creator.principalId.toString().slice(0, 10)}...
