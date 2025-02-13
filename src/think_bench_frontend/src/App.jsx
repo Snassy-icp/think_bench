@@ -28,8 +28,107 @@ function App() {
 
   // Load concepts on mount
   useEffect(() => {
+    initializeRelationshipTypes();
     loadConcepts();
   }, []);
+
+  // Initialize basic relationship types
+  const initializeRelationshipTypes = async () => {
+    try {
+      // Define the basic relationship types
+      const basicTypes = [
+        {
+          name: "IS-A",
+          description: ["Basic inheritance relationship"],
+          properties: {
+            logical: {
+              transitive: true,
+              symmetric: false,
+              reflexive: false,
+              irreflexive: true,
+            },
+            inheritance: {
+              inheritable: true,
+              probabilityMode: { 'MULTIPLY': null },
+            },
+            validation: [{ 'NoSelfReference': null }],
+          },
+          metadata: [],
+        },
+        {
+          name: "HAS-A",
+          description: ["Composition relationship"],
+          properties: {
+            logical: {
+              transitive: false,
+              symmetric: false,
+              reflexive: false,
+              irreflexive: true,
+            },
+            inheritance: {
+              inheritable: true,
+              probabilityMode: { 'MULTIPLY': null },
+            },
+            validation: [{ 'NoSelfReference': null }],
+          },
+          metadata: [],
+        },
+        {
+          name: "PART-OF",
+          description: ["Part-whole relationship"],
+          properties: {
+            logical: {
+              transitive: true,
+              symmetric: false,
+              reflexive: false,
+              irreflexive: true,
+            },
+            inheritance: {
+              inheritable: false,
+              probabilityMode: { 'MULTIPLY': null },
+            },
+            validation: [{ 'NoSelfReference': null }],
+          },
+          metadata: [],
+        },
+        {
+          name: "PROPERTY-OF",
+          description: ["Property relationship"],
+          properties: {
+            logical: {
+              transitive: false,
+              symmetric: false,
+              reflexive: false,
+              irreflexive: true,
+            },
+            inheritance: {
+              inheritable: true,
+              probabilityMode: { 'MULTIPLY': null },
+            },
+            validation: [{ 'NoSelfReference': null }],
+          },
+          metadata: [],
+        },
+      ];
+
+      // Create each relationship type if it doesn't exist
+      for (const type of basicTypes) {
+        try {
+          await think_bench_backend.createRelationshipType(
+            type.name,
+            type.description,
+            type.properties,
+            type.metadata
+          );
+        } catch (error) {
+          // Ignore errors - type might already exist
+          console.log(`Note: ${type.name} type might already exist`);
+        }
+      }
+    } catch (err) {
+      console.error('Error initializing relationship types:', err);
+    }
+  };
 
   // Load concepts from backend
   const loadConcepts = async () => {
