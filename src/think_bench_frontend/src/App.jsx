@@ -6,7 +6,6 @@ import './App.scss';
 
 // Constants for mainnet deployment
 const IDENTITY_PROVIDER = 'https://identity.ic0.app';
-const HOST = 'https://ic0.app';
 
 function App() {
   const [authClient, setAuthClient] = useState(null);
@@ -54,9 +53,8 @@ function App() {
         setIdentity(identity);
         setPrincipal(identity.getPrincipal().toString());
         // Create new actor with identity
-        const agent = new HttpAgent();
+        const agent = new HttpAgent({ identity });
         agent.fetchRootKey();  // Needed for local development
-        agent.replaceIdentity(identity);
         const backendActor = createBackendActor(backendCanisterId, { agentOptions: { identity } }); 
         setActor(backendActor);
       }
@@ -75,9 +73,8 @@ function App() {
           setIdentity(identity);
           setPrincipal(identity.getPrincipal().toString());
           // Create new actor with identity
-          const agent = new HttpAgent();
+          const agent = new HttpAgent({ identity });
           agent.fetchRootKey();  // Needed for local development
-          agent.replaceIdentity(identity);
           const backendActor = createBackendActor(backendCanisterId, { agentOptions: { identity } }); 
           setActor(backendActor);
           // Load concepts after successful login
@@ -217,6 +214,7 @@ function App() {
         metadata: [],     // Empty vec
         hasInstances: [], // Optional: none
         isInstance: [],   // Optional: none
+        creator: []       // Optional: none, include all creators
       });
       if ('ok' in result) {
         setConcepts(result.ok.items);
@@ -273,6 +271,7 @@ function App() {
         minProbability: [],
         maxProbability: [],
         metadata: [],
+        creator: []  // Optional: none, include all creators
       });
       
       if ('ok' in outgoingResult && 'ok' in incomingResult) {
@@ -416,6 +415,7 @@ function App() {
                       {concept.description && (
                         <span className="concept-description">{concept.description}</span>
                       )}
+                      <span className="concept-creator">Created by: {concept.creator.principalId.toString().slice(0, 10)}...</span>
                     </li>
                   ))}
                 </ul>
@@ -525,6 +525,9 @@ function App() {
                             </div>
                             <div className="relationship-probability">
                               {formatProbability(rel.relationship.probability)}
+                            </div>
+                            <div className="relationship-creator">
+                              Created by: {rel.relationship.creator.principalId.toString().slice(0, 10)}...
                             </div>
                             {rel.source.tag === 'Transitive' && (
                               <div className="inference-info">
