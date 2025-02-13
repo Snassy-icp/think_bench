@@ -500,7 +500,9 @@ type Concept = {
     description: ?Text;
     created: Time.Time;
     modified: Time.Time;
-    metadata: [(Text, Text)];  // Flexible metadata key-value pairs
+    outgoingRelationships: [RelationshipId];  // Where this concept is the source
+    incomingRelationships: [RelationshipId];  // Where this concept is the target
+    metadata: [(Text, Text)];
 };
 
 // Query types for flexible searching
@@ -519,11 +521,139 @@ type RelationshipTypeId = Nat;
 type RelationshipTypeDef = {
     id: RelationshipTypeId;
     name: Text;  // e.g., "IS_A", "HAS_A"
-    properties: {
-        transitive: Bool;
-        symmetric: Bool;
-        inverse: ?RelationshipTypeId;
+    version: Nat;  // For tracking changes to behavior
+    status: {
+        #ACTIVE;
+        #DEPRECATED: { replacedBy: ?RelationshipTypeId };
+        #DISABLED;
     };
+    properties: {
+        // Core logical properties
+        transitive: Bool;  // If A->B->C then A->C
+        symmetric: Bool;   // If A->B then B->A
+        reflexive: Bool;   // A->A always holds
+        antisymmetric: Bool; // If A->B and B->A then A=B
+        functional: Bool;  // Each source can have at most one target
+        inverseFunctional: Bool; // Each target can have at most one source
+        
+        // Inheritance properties
+        inheritable: Bool;  // Whether relationship inherits through IS-A
+        inheritanceMode: {
+            #MULTIPLY;  // p1 * p2 (like IS-A chains)
+            #MINIMUM;   // min(p1, p2) (conservative)
+            #MAXIMUM;   // max(p1, p2) (optimistic)
+            #OVERRIDE; // Most specific wins
+        };
+        
+        // Relationship interaction properties
+        inverse: ?RelationshipTypeId;  // Inverse relationship if any
+        implies: [RelationshipTypeId]; // Other relationships this one implies
+        disjointWith: [RelationshipTypeId]; // Cannot hold simultaneously
+        subsumedBy: [RelationshipTypeId];   // Stronger relationships that imply this one
+        
+        // Composition properties
+        compositionRules: [{
+            first: RelationshipTypeId;
+            result: RelationshipTypeId;
+            
+            // Optional second relationship for ternary compositions
+            second: ?RelationshipTypeId;
+            
+            // Probability computation
+            probabilityRule: {
+                #MULTIPLY;      // Independent events
+                #MINIMUM;       // Conservative bound
+                #MAXIMUM;       // Optimistic bound
+                #OR;           // p1 + p2 - p1*p2
+                #AND;          // p1 * p2
+                #CONDITIONAL;  // P(A|B) = P(A∧B)/P(B)
+                #BAYES;       // P(B|A) = P(A|B)*P(B)/P(A)
+                #CUSTOM: Text; // Formula reference
+            };
+            
+            // Composition constraints
+            constraints: {
+                requireCommonIntermediate: Bool;  // Must share a middle term
+                preserveDirection: Bool;          // Result follows same direction
+                allowCycles: Bool;               // Can form cycles
+                maxChainLength: ?Nat;            // Limit chain length
+            };
+        }];
+        
+        // Algebraic properties
+        algebraicProperties: {
+            // Basic properties
+            transitive: Bool;      // A->B, B->C ⟹ A->C
+            symmetric: Bool;       // A->B ⟹ B->A
+            reflexive: Bool;       // A->A always holds
+            irreflexive: Bool;     // A->A never holds
+            antisymmetric: Bool;   // A->B, B->A ⟹ A=B
+            asymmetric: Bool;      // A->B ⟹ ¬(B->A)
+            
+            // Functional properties
+            functional: Bool;           // Each source has unique target
+            inverseFunctional: Bool;    // Each target has unique source
+            injective: Bool;            // One-to-one
+            surjective: Bool;           // Onto
+            bijective: Bool;            // Both injective and surjective
+            
+            // Order properties
+            partialOrder: Bool;    // Reflexive, antisymmetric, transitive
+            totalOrder: Bool;      // Partial order + any two elements comparable
+            strictOrder: Bool;     // Irreflexive, transitive
+            equivalence: Bool;     // Reflexive, symmetric, transitive
+            
+            // Lattice properties
+            hasJoin: Bool;         // Least upper bound exists
+            hasMeet: Bool;         // Greatest lower bound exists
+            isLattice: Bool;       // Both join and meet exist
+            
+            // Closure properties
+            closedUnderComposition: Bool;  // Composing preserves type
+            closedUnderInversion: Bool;    // Inverting preserves type
+            closedUnderIntersection: Bool; // Intersecting preserves type
+            closedUnderUnion: Bool;        // Unioning preserves type
+        };
+
+        // Distribution properties
+        distributionRules: [{
+            distributes: RelationshipTypeId;    // This relationship distributes over
+            through: RelationshipTypeId;        // Through this relationship
+            mode: {
+                #LEFT;   // R(A, B∘C) = R(A,B) ∘ R(A,C)
+                #RIGHT;  // R(A∘B, C) = R(A,C) ∘ R(B,C)
+                #BOTH;   // Both left and right distribution
+            };
+        }];
+
+        // Interaction rules with other types
+        interactionRules: [{
+            otherType: RelationshipTypeId;
+            interaction: {
+                #IMPLIES;              // This ⟹ Other
+                #MUTUALLY_EXCLUSIVE;   // Cannot coexist
+                #INDEPENDENT;          // No interaction
+                #COMPLEMENTARY;        // Sum to 1
+                #STRONGER;             // This subsumes Other
+                #WEAKER;              // Other subsumes This
+            };
+            probabilityEffect: {
+                #AMPLIFY;    // Increases probability
+                #DIMINISH;   // Decreases probability
+                #NEGATE;     // Inverts probability
+                #OVERRIDE;   // Replaces probability
+            };
+        }];
+    };
+    
+    // Validation rules
+    validation: {
+        sourceConstraints: [Text];  // Predicates that source must satisfy
+        targetConstraints: [Text];  // Predicates that target must satisfy
+        relationshipConstraints: [Text]; // Predicates on the relationship itself
+    };
+    
+    // Type-specific metadata
     metadata: [(Text, Text)];
 };
 
@@ -540,9 +670,9 @@ let RELATIONSHIP_TYPE_PROPERTY_OF: RelationshipTypeId = 3;
 // Main relationship type
 type Relationship = {
     id: RelationshipId;
-    sourceId: ConceptId;
-    targetId: ConceptId;
-    relationshipTypeId: RelationshipTypeId;  // Changed from variant to ID
+    fromConceptId: ConceptId;     // Source concept
+    toConceptId: ConceptId;       // Target concept
+    relationshipTypeId: RelationshipTypeId;
     probability: Probability;
     provenance: Provenance;
     inheritanceStatus: InheritanceStatus;
@@ -680,3 +810,447 @@ actor ConceptBase {
     ) : async [(RelationshipTypeId, RelationshipTypeDef)];
 };
 ```
+
+### 3. Relationship Type Management
+
+```motoko
+// Advanced probability computation rules
+type ProbabilityRule = {
+    #MULTIPLY;      // Independent events: P(A∧B) = P(A)*P(B)
+    #OR;           // Alternative paths: P(A∨B) = P(A) + P(B) - P(A)*P(B)
+    #AND;          // Joint probability: P(A∧B)
+    #CONDITIONAL;  // P(A|B) = P(A∧B)/P(B)
+    #BAYES;       // P(B|A) = P(A|B)*P(B)/P(A)
+    #NOISY_OR: {   // P(A) = 1 - ∏(1 - pi) for independent causes
+        baseProbability: Probability;
+        leakProbability: Probability;
+    };
+    #MARKOV: {     // Conditional probability tables
+        states: [Text];
+        transitions: [(Text, Text, Probability)];
+    };
+    #CUSTOM: {     // Custom probability formula
+        formula: Text;
+        parameters: [(Text, Probability)];
+    };
+};
+
+// Closure computation for relationship types
+func computeTransitiveClosure(
+    relationships: [Relationship],
+    relationshipType: RelationshipTypeId
+) : [Relationship] {
+    let typeDef = getRelationshipType(relationshipType);
+    if (not typeDef.properties.algebraicProperties.transitive) {
+        return relationships;
+    };
+
+    var closure = relationships;
+    var changed = true;
+    
+    while (changed) {
+        changed := false;
+        for (r1 in closure.vals()) {
+            for (r2 in closure.vals()) {
+                if (r1.targetId == r2.sourceId) {
+                    let newProb = multiply(r1.probability, r2.probability);
+                    let newRel = {
+                        sourceId = r1.sourceId;
+                        targetId = r2.targetId;
+                        probability = newProb;
+                        // ... other fields ...
+                    };
+                    if (not exists(closure, newRel)) {
+                        closure := Array.append(closure, [newRel]);
+                        changed := true;
+                    };
+                };
+            };
+        };
+    };
+    
+    closure
+};
+
+// Example relationship type definitions with inference rules
+let SIBLING_OF = registerRelationshipType({
+    name = "SIBLING_OF";
+    properties = {
+        algebraicProperties = {
+            symmetric = true;
+            irreflexive = true;
+            transitive = false;
+        };
+        compositionRules = [{
+            // If A SIBLING_OF B and B SIBLING_OF C then A SIBLING_OF C
+            first = RELATIONSHIP_TYPE_SIBLING_OF;
+            result = RELATIONSHIP_TYPE_SIBLING_OF;
+            probabilityRule = #MULTIPLY;
+        }];
+        interactionRules = [{
+            // Siblings must have same parents
+            otherType = RELATIONSHIP_TYPE_HAS_PARENT;
+            interaction = #IMPLIES;
+        }];
+    };
+});
+
+let GREATER_THAN = registerRelationshipType({
+    name = "GREATER_THAN";
+    properties = {
+        algebraicProperties = {
+            transitive = true;
+            asymmetric = true;
+            irreflexive = true;
+            strictOrder = true;
+        };
+        compositionRules = [{
+            first = RELATIONSHIP_TYPE_GREATER_THAN;
+            result = RELATIONSHIP_TYPE_GREATER_THAN;
+            probabilityRule = #MINIMUM;  // Conservative estimate
+        }];
+    };
+});
+
+// Validation rules with examples
+func validateRelationshipAssertion(
+    source: ConceptId,
+    target: ConceptId,
+    relationshipType: RelationshipTypeId,
+    probability: Probability
+) : Result<(), Text> {
+    let typeDef = getRelationshipType(relationshipType);
+    
+    // Check reflexivity constraints
+    if (source == target) {
+        if (typeDef.properties.algebraicProperties.irreflexive) {
+            return #err("Relationship cannot be reflexive");
+        };
+        if (not typeDef.properties.algebraicProperties.reflexive) {
+            return #err("Relationship must be explicitly marked as reflexive");
+        };
+    };
+    
+    // Check functional constraints
+    if (typeDef.properties.algebraicProperties.functional) {
+        let existing = findRelationships(source, relationshipType);
+        if (existing.size() > 0) {
+            return #err("Functional relationship already exists for source");
+        };
+    };
+    
+    // Check order constraints
+    if (typeDef.properties.algebraicProperties.strictOrder) {
+        // Check for cycles
+        if (pathExists(target, source, relationshipType)) {
+            return #err("Would create cycle in strict order");
+        };
+    };
+    
+    // Check probability constraints
+    if (typeDef.properties.algebraicProperties.equivalence) {
+        if (not isEqual(probability, createProbability(1, 1))) {
+            return #err("Equivalence relationships must have probability 1");
+        };
+    };
+    
+    #ok()
+};
+
+// Example inference patterns
+type InferencePattern = {
+    #Transitive: {
+        through: RelationshipTypeId;
+    };
+    #Symmetric: {
+        relationship: RelationshipTypeId;
+    };
+    #Inverse: {
+        forward: RelationshipTypeId;
+        backward: RelationshipTypeId;
+    };
+    #Distribution: {
+        outer: RelationshipTypeId;
+        inner: RelationshipTypeId;
+    };
+    #Composition: {
+        first: RelationshipTypeId;
+        second: RelationshipTypeId;
+        result: RelationshipTypeId;
+    };
+};
+
+// Example usage:
+// 1. Transitive closure of GREATER_THAN
+let ordered = computeTransitiveClosure(relationships, RELATIONSHIP_TYPE_GREATER_THAN);
+
+// 2. Symmetric inference for SIBLING_OF
+if (exists(A, B, SIBLING_OF)) {
+    infer(B, A, SIBLING_OF, sameProbability);
+};
+
+// 3. Distribution of HAS-A over IS-A
+// If Dog IS-A Mammal and Mammal HAS-A Heart
+// Then Dog HAS-A Heart (with computed probability)
+if (exists(A, B, IS_A) and exists(B, C, HAS_A)) {
+    let p1 = getProbability(A, B, IS_A);
+    let p2 = getProbability(B, C, HAS_A);
+    infer(A, C, HAS_A, multiply(p1, p2));
+};
+```
+
+### 4. Bidirectional Relationship Indexing
+
+```motoko
+// Bidirectional relationship indexing
+type RelationshipIndex = {
+    // Forward index: source -> [(relationshipType, target)]
+    forwardIndex: [(ConceptId, [(RelationshipTypeId, ConceptId)])];
+    // Reverse index: target -> [(relationshipType, source)]
+    reverseIndex: [(ConceptId, [(RelationshipTypeId, ConceptId)])];
+    // Type index: relationshipType -> [(source, target)]
+    typeIndex: [(RelationshipTypeId, [(ConceptId, ConceptId)])];
+};
+
+// Stable storage for indexes
+stable var relationshipIndex: RelationshipIndex = {
+    forwardIndex = [];
+    reverseIndex = [];
+    typeIndex = [];
+};
+
+// Index maintenance functions
+func indexRelationship(relationship: Relationship) {
+    // Add to forward index
+    addToForwardIndex(
+        relationship.sourceId,
+        relationship.relationshipTypeId,
+        relationship.targetId
+    );
+    
+    // Add to reverse index
+    addToReverseIndex(
+        relationship.targetId,
+        relationship.relationshipTypeId,
+        relationship.sourceId
+    );
+    
+    // Add to type index
+    addToTypeIndex(
+        relationship.relationshipTypeId,
+        relationship.sourceId,
+        relationship.targetId
+    );
+};
+
+// Enhanced query functions for bidirectional traversal
+type TraversalDirection = {
+    #FORWARD;     // Follow relationships from source to target
+    #REVERSE;     // Follow relationships from target to source
+    #BOTH;        // Follow in both directions
+};
+
+type RelationshipTraversalQuery = {
+    startingConcept: ConceptId;
+    relationshipTypes: [RelationshipTypeId];
+    direction: TraversalDirection;
+    maxDepth: ?Nat;
+    minProbability: ?Probability;
+};
+
+// Traversal function
+func traverseRelationships(query: RelationshipTraversalQuery) : [Relationship] {
+    var results: [Relationship] = [];
+    var visited: [(ConceptId, RelationshipTypeId)] = [];
+    var queue: [(ConceptId, Nat)] = [(query.startingConcept, 0)];
+    
+    while (queue.size() > 0) {
+        let (currentId, depth) = queue[0];
+        queue := Array.slice(queue, 1, queue.size());
+        
+        if (Option.get(query.maxDepth, 2**32 - 1) >= depth) {
+            // Get forward relationships
+            if (query.direction == #FORWARD or query.direction == #BOTH) {
+                let forward = getForwardRelationships(currentId, query.relationshipTypes);
+                for (rel in forward.vals()) {
+                    if (not visited.contains((rel.targetId, rel.relationshipTypeId))) {
+                        results := Array.append(results, [rel]);
+                        queue := Array.append(queue, [(rel.targetId, depth + 1)]);
+                        visited := Array.append(visited, [(rel.targetId, rel.relationshipTypeId)]);
+                    };
+                };
+            };
+            
+            // Get reverse relationships
+            if (query.direction == #REVERSE or query.direction == #BOTH) {
+                let reverse = getReverseRelationships(currentId, query.relationshipTypes);
+                for (rel in reverse.vals()) {
+                    if (not visited.contains((rel.sourceId, rel.relationshipTypeId))) {
+                        results := Array.append(results, [rel]);
+                        queue := Array.append(queue, [(rel.sourceId, depth + 1)]);
+                        visited := Array.append(visited, [(rel.sourceId, rel.relationshipTypeId)]);
+                    };
+                };
+            };
+        };
+    };
+    
+    results
+};
+
+// Example queries:
+// 1. Get all instances of a concept (reverse IS-A traversal)
+func getInstances(conceptId: ConceptId) : [ConceptId] {
+    let query = {
+        startingConcept = conceptId;
+        relationshipTypes = [RELATIONSHIP_TYPE_IS_A];
+        direction = #REVERSE;
+        maxDepth = null;
+        minProbability = ?createProbability(1, 1);
+    };
+    let relationships = traverseRelationships(query);
+    Array.map(relationships, func(r: Relationship) : ConceptId { r.sourceId })
+};
+
+// 2. Get all categories a concept belongs to (forward IS-A traversal)
+func getCategories(conceptId: ConceptId) : [ConceptId] {
+    let query = {
+        startingConcept = conceptId;
+        relationshipTypes = [RELATIONSHIP_TYPE_IS_A];
+        direction = #FORWARD;
+        maxDepth = null;
+        minProbability = null;
+    };
+    let relationships = traverseRelationships(query);
+    Array.map(relationships, func(r: Relationship) : ConceptId { r.targetId })
+};
+
+// 3. Get all properties and parts (multiple relationship types)
+func getPropertiesAndParts(conceptId: ConceptId) : [Relationship] {
+    traverseRelationships({
+        startingConcept = conceptId;
+        relationshipTypes = [
+            RELATIONSHIP_TYPE_HAS_A,
+            RELATIONSHIP_TYPE_PROPERTY_OF
+        ];
+        direction = #FORWARD;
+        maxDepth = ?1;
+        minProbability = null;
+    })
+};
+
+// Add to Backend API:
+public query func traverseConcepts(
+    query: RelationshipTraversalQuery
+) : async [Relationship];
+
+public query func getRelatedConcepts(
+    conceptId: ConceptId,
+    direction: TraversalDirection,
+    relationshipTypes: [RelationshipTypeId]
+) : async [ConceptId];
+
+// Example usage:
+// From Horse, find all instances (Black Beauty)
+let horseInstances = getInstances(horseId);
+
+// From Black Beauty, find all categories (Horse, Mammal, Animal)
+let blackBeautyCategories = getCategories(blackBeautyId);
+
+// From Horse, find all properties and parts
+let horseProperties = getPropertiesAndParts(horseId);
+```
+
+### 5. Helper Functions
+
+```motoko
+// Helper functions for relationship management
+func addRelationship(relationship: Relationship) : async Result<(), Text> {
+    // Update source concept's outgoing relationships
+    switch (concepts.get(relationship.fromConceptId)) {
+        case (?concept) {
+            concept.outgoingRelationships := 
+                Array.append(concept.outgoingRelationships, [relationship.id]);
+        };
+        case null return #err("Source concept not found");
+    };
+
+    // Update target concept's incoming relationships
+    switch (concepts.get(relationship.toConceptId)) {
+        case (?concept) {
+            concept.incomingRelationships := 
+                Array.append(concept.incomingRelationships, [relationship.id]);
+        };
+        case null return #err("Target concept not found");
+    };
+
+    relationships.put(relationship.id, relationship);
+    #ok()
+};
+
+func removeRelationship(relationshipId: RelationshipId) : async Result<(), Text> {
+    switch (relationships.get(relationshipId)) {
+        case (?relationship) {
+            // Remove from source concept
+            switch (concepts.get(relationship.fromConceptId)) {
+                case (?concept) {
+                    concept.outgoingRelationships := 
+                        Array.filter(concept.outgoingRelationships, 
+                            func(id: RelationshipId) : Bool { id != relationshipId });
+                };
+                case null return #err("Source concept not found");
+            };
+
+            // Remove from target concept
+            switch (concepts.get(relationship.toConceptId)) {
+                case (?concept) {
+                    concept.incomingRelationships := 
+                        Array.filter(concept.incomingRelationships, 
+                            func(id: RelationshipId) : Bool { id != relationshipId });
+                };
+                case null return #err("Target concept not found");
+            };
+
+            relationships.delete(relationshipId);
+            #ok()
+        };
+        case null #err("Relationship not found");
+    }
+};
+
+// Enhanced query functions
+func getConceptOutgoingRelationships(
+    conceptId: ConceptId,
+    relationshipType: ?RelationshipTypeId
+) : [Relationship] {
+    switch (concepts.get(conceptId)) {
+        case (?concept) {
+            let rels = Array.mapFilter(concept.outgoingRelationships, 
+                func(id: RelationshipId) : ?Relationship { relationships.get(id) });
+            switch (relationshipType) {
+                case (?typeId) Array.filter(rels, 
+                    func(r: Relationship) : Bool { r.relationshipTypeId == typeId });
+                case null rels;
+            }
+        };
+        case null [];
+    }
+};
+
+func getConceptIncomingRelationships(
+    conceptId: ConceptId,
+    relationshipType: ?RelationshipTypeId
+) : [Relationship] {
+    switch (concepts.get(conceptId)) {
+        case (?concept) {
+            let rels = Array.mapFilter(concept.incomingRelationships, 
+                func(id: RelationshipId) : ?Relationship { relationships.get(id) });
+            switch (relationshipType) {
+                case (?typeId) Array.filter(rels, 
+                    func(r: Relationship) : Bool { r.relationshipTypeId == typeId });
+                case null rels;
+            }
+        };
+        case null [];
+    }
+};
