@@ -47,21 +47,28 @@ Relationships connect concepts to each other.
    - Represents hierarchical classification
    - Transitive: If A IS-A B and B IS-A C, then A IS-A C
    - Probability combines multiplicatively through transitive inference
+   - Inherited probabilities can be overridden by direct assertions
    
 2. HAS-A Relationship
    - Represents possession or composition
    - Example: "Horse HAS-A Tail" (probability: 999/1000)
    - Can include quantity/cardinality
+   - Inherited by instances (e.g., if Horse HAS-A Tail, Black Beauty inherits this)
+   - Inherited probabilities can be overridden by direct assertions
 
 3. PART-OF Relationship
    - Represents component relationships
    - Inverse of HAS-A
    - Example: "Heart PART-OF Mammal" (probability: 1/1)
+   - Inherits inversely through IS-A relationships
+   - Inherited probabilities can be overridden by direct assertions
 
 4. PROPERTY-OF Relationship
    - Links concepts to their properties
    - Can include value and units
    - Example: "Color PROPERTY-OF Black Beauty = Black" (probability: 1/1)
+   - Properties inherit through IS-A relationships
+   - Inherited probabilities can be overridden by direct assertions
 
 #### 2.2 Relationship Properties
 Each relationship has:
@@ -79,18 +86,27 @@ Each relationship has:
     - Preserved through mathematical operations
     - Allows for infinite precision
 - Provenance:
-  - Direct assertion
+  - Direct assertion (overrides inherited probabilities)
   - Logical deduction (with references to premises)
+  - Inheritance (references source relationship and inheritance path)
   - External reference/source
   - Experimental/empirical evidence
 - Temporal Context (when applicable)
 - Conflict References (links to conflicting relationships)
+- Inheritance Status:
+  - #EXPLICIT // Directly asserted, overrides inheritance
+  - #INHERITED // Derived through inheritance rules
+  - #COMPUTED // Derived through other inference rules
 
 ### 3. Logical Inference System
 The system maintains both explicit and derived relationships:
-- Explicit relationships are directly asserted
+- Explicit relationships are directly asserted (override inherited ones)
 - Derived relationships are computed through logical inference
 - Each derived relationship maintains references to its premises
+- Inheritance hierarchy:
+  1. Explicit assertions (highest precedence)
+  2. Direct logical inference
+  3. Inherited relationships (lowest precedence)
 
 #### 3.1 Inference Rules
 1. Transitive Inference (AND-chain):
@@ -114,13 +130,30 @@ The system maintains both explicit and derived relationships:
    ∴ A HAS-PROPERTY X (min(p1, p2))  // Conservative estimate
    ```
 
-4. Inverse Relationships:
+4. HAS-A Inheritance:
+   ```
+   A IS-A B (p1)
+   B HAS-A X (p2)
+   ∴ A HAS-A X (p1 * p2)  // Multiplicative because both conditions must hold
+   
+   Example:
+   Black Beauty IS-A Horse (p: 1/1)
+   Horse HAS-A Tail (p: 92/100)
+   ∴ Black Beauty HAS-A Tail (p: 92/100)  // Since 1/1 * 92/100 = 92/100
+   
+   Override example:
+   If later added:
+   Black Beauty HAS-A Tail (p: 1/1)  // Direct observation
+   This overrides the inherited probability as it's explicit knowledge
+   ```
+
+5. Inverse Relationships:
    ```
    A HAS-A B (p1)
    ∴ B PART-OF A (p1)  // Probability preserved
    ```
 
-5. Contradictory Evidence:
+6. Contradictory Evidence:
    ```
    A IS-A B (p1)
    A IS-NOT-A B (p2)
@@ -170,6 +203,48 @@ The system maintains both explicit and derived relationships:
 - Precompute common property inheritances
 - Lazy evaluation of long inference chains
 - Prioritize short inference paths over long ones
+
+#### 3.5 Inheritance Override Rules
+1. Explicit Override:
+   ```
+   Given inherited:
+   A IS-A B (p1)
+   B HAS-A X (p2)
+   ∴ A HAS-A X (p1 * p2)  // Inherited probability
+
+   If explicitly asserted:
+   A HAS-A X (p3)  // Direct knowledge
+   ∴ A HAS-A X (p3)  // Overrides inherited probability
+   ```
+
+2. Multiple Inheritance Resolution:
+   ```
+   A IS-A B (p1)
+   A IS-A C (p2)
+   B HAS-A X (p3)
+   C HAS-A X (p4)
+   ∴ A HAS-A X (combined probability using OR rule)
+   
+   If explicitly asserted:
+   A HAS-A X (p5)
+   ∴ A HAS-A X (p5)  // Overrides all inherited probabilities
+   ```
+
+3. Temporal Override:
+   ```
+   At t1: A HAS-A X (inherited: p1)
+   At t2: A HAS-A X (explicit: p2)
+   At t3: Source of inheritance changes
+   ∴ A HAS-A X (p2)  // Explicit assertion remains until explicitly changed
+   ```
+
+4. Inheritance Chain Breaking:
+   ```
+   A IS-A B IS-A C
+   C HAS-A X (p1)
+   B HAS-A X (p2)  // More specific, overrides inheritance from C
+   ∴ A inherits from B, not C
+   ```
 
 ### 4. Probability System
 
