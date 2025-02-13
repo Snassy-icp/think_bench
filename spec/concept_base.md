@@ -28,10 +28,11 @@ This document specifies the structure and operations of a concept base system de
 A concept is the fundamental unit in our system. Each concept represents a distinct idea, entity, or category. 
 
 #### 1.1 Concept Types
-Concepts can be:
-- Concrete entities (e.g., "Black Beauty")
-- Categories (e.g., "Horse", "Mammal")
-- Abstract ideas (e.g., "Speed", "Intelligence")
+A concept's nature emerges from its relationships rather than being explicitly typed:
+- A concept is concrete if it has no instances (no other concepts that IS-A this concept)
+- A concept is a category if it has instances (other concepts that IS-A this concept)
+- A concept is abstract if it only appears in property relationships
+- These classifications are computed dynamically and can change as relationships are added or removed
 
 #### 1.2 Concept Properties
 Each concept can have properties:
@@ -463,3 +464,219 @@ The system explicitly tracks and manages conflicts:
 5. Define the API for adding, querying, and manipulating concepts
 6. Implement conflict detection and resolution mechanisms
 7. Create a query language for complex concept relationships
+
+## Implementation
+
+### 1. Types
+
+```motoko
+// Core types for the concept base system
+
+// ID types and counters
+type ConceptId = Nat;
+type RelationshipId = Nat;
+
+// Stable state for ID generation
+stable var nextConceptId : Nat = 0;
+stable var nextRelationshipId : Nat = 0;
+
+// Helper functions for ID generation
+func generateConceptId() : ConceptId {
+    let id = nextConceptId;
+    nextConceptId += 1;
+    id
+};
+
+func generateRelationshipId() : RelationshipId {
+    let id = nextRelationshipId;
+    nextRelationshipId += 1;
+    id
+};
+
+// Main concept type
+type Concept = {
+    id: ConceptId;
+    name: Text;
+    description: ?Text;
+    created: Time.Time;
+    modified: Time.Time;
+    metadata: [(Text, Text)];  // Flexible metadata key-value pairs
+};
+
+// Query types for flexible searching
+type ConceptQuery = {
+    namePattern: ?Text;
+    metadata: [(Text, Text)];
+    hasInstances: ?Bool;        // For finding categories
+    isInstance: ?Bool;          // For finding concrete entities
+    hasPropertyRelations: ?Bool; // For finding abstract concepts
+};
+
+// Core relationship type definitions
+type RelationshipTypeId = Nat;
+
+// Relationship type definition
+type RelationshipTypeDef = {
+    id: RelationshipTypeId;
+    name: Text;  // e.g., "IS_A", "HAS_A"
+    properties: {
+        transitive: Bool;
+        symmetric: Bool;
+        inverse: ?RelationshipTypeId;
+    };
+    metadata: [(Text, Text)];
+};
+
+// Stable storage for relationship types
+stable var nextRelationshipTypeId: Nat = 0;
+stable var relationshipTypes: [(RelationshipTypeId, RelationshipTypeDef)] = [];
+
+// Core relationship type IDs (initialized during canister setup)
+let RELATIONSHIP_TYPE_IS_A: RelationshipTypeId = 0;
+let RELATIONSHIP_TYPE_HAS_A: RelationshipTypeId = 1;
+let RELATIONSHIP_TYPE_PART_OF: RelationshipTypeId = 2;
+let RELATIONSHIP_TYPE_PROPERTY_OF: RelationshipTypeId = 3;
+
+// Main relationship type
+type Relationship = {
+    id: RelationshipId;
+    sourceId: ConceptId;
+    targetId: ConceptId;
+    relationshipTypeId: RelationshipTypeId;  // Changed from variant to ID
+    probability: Probability;
+    provenance: Provenance;
+    inheritanceStatus: InheritanceStatus;
+    temporal: ?{
+        validFrom: Time.Time;
+        validTo: ?Time.Time;
+    };
+    conflicts: [RelationshipId];
+    metadata: [(Text, Text)];
+};
+
+// Result types
+type QueryResult<T> = {
+    #ok: {
+        items: [T];
+        total: Nat;
+        page: Nat;
+        pageSize: Nat;
+    };
+    #err: Text;
+};
+```
+
+### 2. Backend API
+
+```motoko
+actor ConceptBase {
+    // Concept Management
+    public shared(msg) func createConcept(
+        name: Text,
+        conceptType: ConceptType,
+        description: ?Text
+    ) : async Result<ConceptId, Text>;
+
+    public shared(msg) func updateConcept(
+        id: ConceptId,
+        name: ?Text,
+        description: ?Text,
+        metadata: ?[(Text, Text)]
+    ) : async Result<(), Text>;
+
+    public query func getConcept(id: ConceptId) : async Result<Concept, Text>;
+
+    public query func queryConcepts(
+        query: ConceptQuery,
+        page: Nat,
+        pageSize: Nat
+    ) : async QueryResult<Concept>;
+
+    // Relationship Management
+    public shared(msg) func assertRelationship(
+        sourceId: ConceptId,
+        targetId: ConceptId,
+        relationType: RelationshipType,
+        probability: Probability,
+        metadata: ?[(Text, Text)]
+    ) : async Result<RelationshipId, Text>;
+
+    public shared(msg) func updateRelationship(
+        id: RelationshipId,
+        probability: ?Probability,
+        metadata: ?[(Text, Text)]
+    ) : async Result<(), Text>;
+
+    public query func getRelationship(id: RelationshipId) : async Result<Relationship, Text>;
+
+    public query func queryRelationships(
+        query: RelationshipQuery,
+        page: Nat,
+        pageSize: Nat
+    ) : async QueryResult<Relationship>;
+
+    // Inference and Reasoning
+    public query func inferRelationships(
+        sourceId: ConceptId,
+        relationType: ?RelationshipType,
+        maxDepth: ?Nat
+    ) : async QueryResult<Relationship>;
+
+    public query func validateInference(
+        relationships: [RelationshipId]
+    ) : async Result<{
+        valid: Bool;
+        explanation: Text;
+        conflicts: [RelationshipId];
+    }, Text>;
+
+    // Probability Operations
+    public query func combineEvidence(
+        relationships: [RelationshipId],
+        strategy: {
+            #CONSERVATIVE;
+            #OPTIMISTIC;
+            #BALANCED;
+        }
+    ) : async Result<Probability, Text>;
+
+    // System Operations
+    public shared(msg) func addConflict(
+        relationship1: RelationshipId,
+        relationship2: RelationshipId,
+        explanation: Text
+    ) : async Result<(), Text>;
+
+    public query func getInheritanceChain(
+        relationshipId: RelationshipId
+    ) : async Result<[Relationship], Text>;
+
+    // Batch Operations
+    public shared(msg) func batchAssertRelationships(
+        relationships: [{
+            sourceId: ConceptId;
+            targetId: ConceptId;
+            relationType: RelationshipType;
+            probability: Probability;
+        }]
+    ) : async Result<[RelationshipId], Text>;
+
+    // Relationship Type Management
+    public shared(msg) func createRelationshipType(
+        name: Text,
+        properties: {
+            transitive: Bool;
+            symmetric: Bool;
+            inverse: ?RelationshipTypeId;
+        },
+        metadata: [(Text, Text)]
+    ) : async Result<RelationshipTypeId, Text>;
+
+    public query func getRelationshipType(
+        id: RelationshipTypeId
+    ) : async Result<RelationshipTypeDef, Text>;
+
+    public query func listRelationshipTypes(
+    ) : async [(RelationshipTypeId, RelationshipTypeDef)];
+};
+```
