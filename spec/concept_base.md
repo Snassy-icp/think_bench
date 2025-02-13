@@ -2530,3 +2530,11 @@ These rules ensure:
 - Type-safe development
 - Accessible user interface
 - Optimal performance
+
+1. NEVER use Tailwind for ANYTHING
+2. Be extremely conservative with dependencies. All new dependencies MUST be explicitly approved before addition.
+3. JavaScript-Motoko Interop:
+   - Motoko `null` values are represented as empty arrays `[]` in JavaScript
+   - Motoko optional values are wrapped in arrays `[value]` in JavaScript
+   - Example: `?Text` in Motoko becomes `[]` (none) or `["my text"]` (some) in JavaScript
+4. Many of the problems in JavaScript / Motoko interop come from BigInt (Nat in Motoko) management, so please always be extra careful with this!

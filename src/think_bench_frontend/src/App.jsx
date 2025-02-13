@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { think_bench_backend } from '../../../declarations/think_bench_backend';
+import { think_bench_backend } from '../../declarations/think_bench_backend';
 import './App.scss';
 
 function App() {
@@ -23,10 +23,10 @@ function App() {
     try {
       setLoading(true);
       const result = await think_bench_backend.queryConcepts({
-        namePattern: null,
-        metadata: [],
-        hasInstances: null,
-        isInstance: null,
+        namePattern: [],  // Optional: none
+        metadata: [],     // Empty vec
+        hasInstances: [], // Optional: none
+        isInstance: [],   // Optional: none
       });
       if ('ok' in result) {
         setConcepts(result.ok.items);
@@ -47,8 +47,8 @@ function App() {
       setLoading(true);
       const result = await think_bench_backend.createConcept(
         newConceptData.name,
-        newConceptData.description ? [newConceptData.description] : null,
-        null
+        newConceptData.description ? [newConceptData.description] : [], // Optional text
+        []  // Optional metadata: none
       );
       if ('ok' in result) {
         setNewConceptData({ name: '', description: '' });
@@ -69,9 +69,9 @@ function App() {
       setLoading(true);
       const result = await think_bench_backend.inferRelationships({
         startingConcept: conceptId,
-        relationshipType: null,
-        maxDepth: 3,
-        minProbability: null,
+        relationshipType: [],  // Optional: none
+        maxDepth: [3],        // Optional: some(3)
+        minProbability: [],   // Optional: none
       });
       if ('ok' in result) {
         setRelationships(result.ok.items);
