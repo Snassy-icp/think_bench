@@ -154,14 +154,100 @@ func createProbability(n: Nat, d: Nat) : ?Probability {
   }
   ```
 - Complement: For negation (1 - p)
+  ```motoko
+  // Example implementation
+  func complement(p: Probability) : Probability {
+      {
+          numerator = p.denominator - p.numerator;
+          denominator = p.denominator;
+          invariant = (p.denominator - p.numerator) <= p.denominator;
+      }
+  }
+  ```
 - Comparison: For evaluating relative likelihoods
+  ```motoko
+  // Example implementations
+  func isEqual(p1: Probability, p2: Probability) : Bool {
+      p1.numerator * p2.denominator == p2.numerator * p1.denominator
+  };
+
+  func isLessThan(p1: Probability, p2: Probability) : Bool {
+      p1.numerator * p2.denominator < p2.numerator * p1.denominator
+  };
+  ```
+- Conditional Probability: For dependent events
+  ```motoko
+  // P(A|B) = P(A AND B) / P(B)
+  func conditional(pAandB: Probability, pB: Probability) : ?Probability {
+      if (pB.numerator == 0) {
+          null  // Cannot condition on impossible event
+      } else {
+          createProbability(
+              pAandB.numerator * pB.denominator,
+              pAandB.denominator * pB.numerator
+          )
+      }
+  }
+  ```
 
 #### 4.3 Dynamic Interpretation
 Probabilities can be dynamically interpreted based on context:
-- Categorical mapping (ALWAYS, MOSTLY, SOMETIMES, RARELY, NEVER)
-- Percentage representation for display
-- Confidence intervals for statistical analysis
-- Boolean thresholds for decision making
+- Categorical mapping:
+  ```motoko
+  type Category = {
+      #ALWAYS;     // p = 1
+      #ALMOST_ALWAYS; // p >= 0.95
+      #MOSTLY;     // p >= 0.75
+      #OFTEN;      // p >= 0.6
+      #SOMETIMES;  // p >= 0.4
+      #RARELY;     // p >= 0.25
+      #ALMOST_NEVER; // p >= 0.05
+      #NEVER;      // p = 0
+  };
+
+  func toCategory(p: Probability) : Category {
+      let ratio = Float.fromInt(p.numerator) / Float.fromInt(p.denominator);
+      switch(ratio) {
+          case 1.0 { #ALWAYS };
+          case (x) if x >= 0.95 { #ALMOST_ALWAYS };
+          case (x) if x >= 0.75 { #MOSTLY };
+          case (x) if x >= 0.60 { #OFTEN };
+          case (x) if x >= 0.40 { #SOMETIMES };
+          case (x) if x >= 0.25 { #RARELY };
+          case (x) if x >= 0.05 { #ALMOST_NEVER };
+          case 0.0 { #NEVER };
+      }
+  }
+  ```
+- Display formats:
+  ```motoko
+  type DisplayFormat = {
+      #RATIO;      // "3/4"
+      #DECIMAL;    // "0.75"
+      #PERCENTAGE; // "75%"
+      #CATEGORY;   // "MOSTLY"
+  };
+
+  func format(p: Probability, fmt: DisplayFormat) : Text {
+      switch(fmt) {
+          case (#RATIO) { 
+              Int.toText(p.numerator) # "/" # Int.toText(p.denominator)
+          };
+          case (#DECIMAL) {
+              // Format to 3 decimal places
+              let ratio = Float.fromInt(p.numerator) / Float.fromInt(p.denominator);
+              formatDecimal(ratio, 3)
+          };
+          case (#PERCENTAGE) {
+              let percent = (Float.fromInt(p.numerator) * 100.0) / Float.fromInt(p.denominator);
+              formatDecimal(percent, 1) # "%"
+          };
+          case (#CATEGORY) {
+              debug_show(toCategory(p))
+          };
+      }
+  }
+  ```
 
 #### 4.4 Mathematical Properties
 - Preserved precision through operations
