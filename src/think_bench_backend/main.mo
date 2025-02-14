@@ -185,6 +185,7 @@ actor ConceptBase {
         toConceptId: Types.ConceptId,
         relationshipTypeId: Types.RelationshipTypeId,
         probability: Types.Probability,
+        confidence: Types.Confidence,
         metadata: ?[(Text, Text)]
     ) : async Types.Result<Types.RelationshipId, Types.Error> {
         // First validate the relationship type exists and is valid
@@ -198,7 +199,7 @@ actor ConceptBase {
                     toConceptId,
                     relationshipTypeId,
                     probability,
-                    { numerator = 1; denominator = 1 },  // Default confidence of 1
+                    confidence,
                     metadata,
                     nextRelationshipId,
                     msg.caller

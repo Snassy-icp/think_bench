@@ -262,6 +262,7 @@ function App() {
         relationshipType: [],
         maxDepth: [3],
         minProbability: [],
+        minConfidence: []  // Add empty optional for minConfidence
       });
 
       // Get incoming relationships (where this concept is the target)
