@@ -2741,3 +2741,30 @@ These confidence requirements ensure:
 - Meaningful confidence propagation through inference
 - Ability to filter relationships by confidence level
 // ... existing code ...
+
+#### 7. Score Chaining Rules
+When combining relationships (through inference, transitivity, etc.), scores are chained as follows:
+
+1. **Probability Chaining**:
+   - Transitive relationships: Multiply probabilities (P1 * P2)
+   - Symmetric relationships: Keep the same probability
+   - Represents mathematical likelihood of relationship being true
+
+2. **Confidence Chaining**:
+   - Use minimum rule: min(C1, C2)
+   - Conservative approach as chain can't be more certain than weakest link
+   - Symmetric relationships keep same confidence
+
+3. **Reliability Score Integration**:
+   - Weight relationship probability by creator's reliability score
+   - Adjusted_Probability = P * Reliability_Score
+   - For chained relationships, use weighted average: (R1 + R2) / 2
+
+4. **Final Combined Score**:
+   - Final_Score = Adjusted_Probability * Confidence
+   - Single measure incorporating:
+     - Relationship likelihood (probability)
+     - Certainty level (confidence)
+     - Source reliability (reliability score)
+
+#### 8. Error Handling
