@@ -18,21 +18,30 @@ module {
         nextId: Nat,
         caller: Principal
     ) : Types.Result<Types.Concept, Types.Error> {
-        let concept : Types.Concept = {
-            id = nextId;
-            name = name;
-            description = description;
-            creator = {
-                principalId = caller;
-                timestamp = Time.now();
+        // Check if concept with same name already exists
+        switch (Array.find<(Types.ConceptId, Types.Concept)>(
+            concepts,
+            func((_, concept)) = concept.name == name
+        )) {
+            case (?existing) return #ok(existing.1);  // Return existing concept
+            case null {
+                let concept : Types.Concept = {
+                    id = nextId;
+                    name = name;
+                    description = description;
+                    creator = {
+                        principalId = caller;
+                        timestamp = Time.now();
+                    };
+                    created = Time.now();
+                    modified = Time.now();
+                    outgoingRelationships = [];
+                    incomingRelationships = [];
+                    metadata = Option.get(metadata, []);
+                };
+                #ok(concept)
             };
-            created = Time.now();
-            modified = Time.now();
-            outgoingRelationships = [];
-            incomingRelationships = [];
-            metadata = Option.get(metadata, []);
-        };
-        #ok(concept)
+        }
     };
 
     public func validateConcept(concept: Types.Concept) : Bool {
@@ -149,46 +158,38 @@ module {
         metadata: [(Text, Text)],
         nextId: Nat
     ) : Types.Result<Types.RelationshipTypeDef, Types.Error> {
-        // Check if name is already taken
+        // Check if type with same name already exists
         switch (Array.find<(Types.RelationshipTypeId, Types.RelationshipTypeDef)>(
             types,
             func((_, def)) = def.name == name
         )) {
-            case (?_) return #err(#ValidationError({
-                code = "NAME_EXISTS";
-                message = "Relationship type with this name already exists";
-                details = ?{
-                    field = "name";
-                    constraint = "unique";
-                    value = name;
+            case (?existing) return #ok(existing.1);  // Return existing type
+            case null {
+                // Validate properties
+                if (properties.logical.reflexive and properties.logical.irreflexive) {
+                    return #err(#ValidationError({
+                        code = "INVALID_PROPERTIES";
+                        message = "Relationship type cannot be both reflexive and irreflexive";
+                        details = ?{
+                            field = "properties.logical";
+                            constraint = "mutually_exclusive";
+                            value = "reflexive and irreflexive";
+                        };
+                    }));
                 };
-            }));
-            case null {};
-        };
 
-        // Validate properties
-        if (properties.logical.reflexive and properties.logical.irreflexive) {
-            return #err(#ValidationError({
-                code = "INVALID_PROPERTIES";
-                message = "Relationship type cannot be both reflexive and irreflexive";
-                details = ?{
-                    field = "properties.logical";
-                    constraint = "mutually_exclusive";
-                    value = "reflexive and irreflexive";
+                let relationshipType : Types.RelationshipTypeDef = {
+                    id = nextId;
+                    name = name;
+                    description = description;
+                    properties = properties;
+                    metadata = metadata;
+                    status = #ACTIVE;
                 };
-            }));
-        };
 
-        let relationshipType : Types.RelationshipTypeDef = {
-            id = nextId;
-            name = name;
-            description = description;
-            properties = properties;
-            metadata = metadata;
-            status = #ACTIVE;
-        };
-
-        #ok(relationshipType)
+                #ok(relationshipType)
+            };
+        }
     };
 
     public func validateRelationshipAgainstType(

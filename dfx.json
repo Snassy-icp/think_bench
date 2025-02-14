@@ -24,6 +24,13 @@
       ],
       "type": "assets",
       "workspace": "think_bench_frontend"
+    },
+    "test": {
+      "main": "src/think_bench_backend/test.mo",
+      "type": "motoko",
+      "dependencies": [
+        "think_bench_backend"
+      ]
     }
   },
   "defaults": {

@@ -124,8 +124,17 @@ actor ConceptBase {
 
         switch (conceptResult) {
             case (#ok(concept)) {
-                concepts.put(concept.id, concept);
-                nextConceptId += 1;
+                // Only increment ID and add to map if this is a new concept
+                switch (Array.find<(Types.ConceptId, Types.Concept)>(
+                    Iter.toArray(concepts.entries()),
+                    func((_, c)) = c.name == name
+                )) {
+                    case null {
+                        concepts.put(concept.id, concept);
+                        nextConceptId += 1;
+                    };
+                    case (?_) {};
+                };
                 #ok(concept.id)
             };
             case (#err(error)) #err(error);
@@ -307,8 +316,17 @@ actor ConceptBase {
 
         switch (typeResult) {
             case (#ok(relType)) {
-                relationshipTypes.put(relType.id, relType);
-                nextRelationshipTypeId += 1;
+                // Only increment ID and add to map if this is a new type
+                switch (Array.find<(Types.RelationshipTypeId, Types.RelationshipTypeDef)>(
+                    Iter.toArray(relationshipTypes.entries()),
+                    func((_, rt)) = rt.name == name
+                )) {
+                    case null {
+                        relationshipTypes.put(relType.id, relType);
+                        nextRelationshipTypeId += 1;
+                    };
+                    case (?_) {};
+                };
                 #ok(relType.id)
             };
             case (#err(error)) #err(error);
